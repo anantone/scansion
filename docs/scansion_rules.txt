@@ -22,9 +22,7 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      élidé (non compté). « table orange » -> tablɔʁɑ̃ʒ.
 
 1.4  E muet en fin de vers : non compté.
-     « la table » -> la-tabl (2 syllabes) ;
-     compté si --keep-line-end-e est passé (la-ta-blə, 3 syllabes,
-     utile pour les rimes féminines).
+     « la table » -> la-tabl (2 syllabes).
 
 1.4b E muet devant une pause graphique (, ; : ! ? … —) : non compté,
      comme en fin de vers.
@@ -55,10 +53,17 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      entièrement, p. ex. corpus contemporain). Un « i » suivi d’une
      voyelle pleine que espeak a rendu par un glide compte DOUBLE en vers
      classique (lion -> li-jɔ̃, dieu -> di-jø, viens -> vi-ens ; mais
-     « hier » [jɛʁ] reste 1). Le contexte classique est détecté par les
+     « hier » [jɛʁ] reste 1). Même traitement pour un « u » suivi d’un
+     « é/è », d’un « eu » ou d’un « a » final (± s/x), rendu glide
+     (nuée -> nu-ée, exténuée -> ex-té-nu-ée, majestueux -> ma-jes-tu-eux,
+     ruas -> ru-as ; 2 syllabes), et pour un « ou »
+     suivi d’un « a » (couardise -> cou-ar-dise, joua -> jou-a) — mais PAS
+     pour un « ue »/« ua » interne (ruelle -> ʁɥɛl, nuage -> nyaʒ,
+     1 syllabe). Le contexte classique est détecté par les
      VERS VOISINS (classical_context?) : majorité de vers dans la BANDE
      alexandrine 10-13 (les 11/13 y comptent comme candidats diérèse)
-     ou alternance stricte 10/12, dans une fenêtre de ±5 vers (seuil
+     OU la bande octosyllabe 6-9 (les 7 y comptent comme candidats),
+     dans une fenêtre de ±5 vers (seuil
      70 %). En poésie
      contemporaine (samples/), la diérèse ne peut PAS être déduite d’un
      nombre cible : les rapports de samples/ tournent avec --no-dierese.
@@ -75,10 +80,26 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      devant une consonne (contrairement à -le : « tables blanches » ->
      ta-blə-blɑ̃ʃ). Ne s’applique qu’en fin de mot (ou devant s/x muet) ;
      un e interne avant une consonne reste compté (règle 1.1).
-     EXCEPTIONS (CR_E_PRONOUNCED) : « entre » et « ventre » gardent leur e
-     final devant une consonne -> ɑ̃-tʁə, vɑ̃-tʁə (« l’amour est mort entre
-     tes bras » -> la-muʁ-ɛ-mɔʁ-ɑ̃-tʁə-te-bʁa, 8 syllabes). Devant une
-     voyelle ou en fin de vers, l’élision habituelle s’applique.
+     EXCEPTIONS (CR_E_PRONOUNCED, pluriels en -s/-x acceptés via
+     cr_e_pronounced?) : « astre », « battre », « croître », « entendre »,
+     « entre », « être », « guerre », « hydre », « maître », « moindre »,
+     « œuvre », « ombre », « peindre », « tonnerre », « ventre » gardent leur e final
+     devant une consonne ->
+     as-tʁə, batʁə, kʁwatʁə, ɑ̃-tɑ̃-dʁə, ɑ̃-tʁə, ɛ-tʁə, gɛ-ʁə, zi-dʁə,
+     mɛ-tʁə, mwɛ̃-dʁə, nœ-vʁə, ɔ̃-bʁə, pɛ̃-dʁə, tɔ-nɛ-ʁə, vɑ̃-tʁə
+     (« l’amour est mort entre tes
+     bras » -> la-muʁ-ɛ-mɔʁ-ɑ̃-tʁə-te-bʁa, 8 syllabes ; « L’astre n’est encor
+     qu’étincelle ; » -> la-stʁə-nɛt-ɑ̃-kɔʁ-ke-tɛ̃-sɛl, 8 syllabes ;
+     « Pour t’entendre sonner, je monte sur ma tour, » ->
+     puʁ-tɑ̃-tɑ̃-dʁə-sɔ-ne-ʒə-mɔ̃-tə-syʁ-ma-tuʁ, 12 syllabes ;
+     « Ô lâche ! Et peut-être demain, » -> o-laʃ-e-pø-ɛ-tʁə də-mɛ̃,
+     8 syllabes ; « La guerre s’est dressée, et j’ai vu, moi rêveur, » ->
+     la-gɛ-ʁə-sɛ-dʁɛ-se-e-ʒe-vy-mwa-ʁɛ-vœʁ, 12 syllabes ;
+     « Mener tous les astres la nuit ; » -> mə-ne-tu-le-za-stʁə-la-nyi,
+     8 syllabes ; « Appuyer dans l’ombre du vide » ->
+     ap-yi-je-dɑ̃-lɔ̃-bʁə-dy-vid, 8 syllabes). Devant une voyelle
+     (« l’ombre où… » -> lɔ̃bʁ, 1 syllabe), devant une pause ou en fin
+     de vers, l’élision habituelle s’applique.
 
 1.6  Terminaison -ent / -ente / -entes :
      - prononcée (e compté) si le mot suivant commence par une consonne
@@ -161,9 +182,31 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      (a -> j+a : effroyable -> efʁwa-jabl, voyage -> vwa-jaʒ).
 
 2.1h Comptage des syllabes : un « y »/ɥ (glide) directement suivi d’une
-     voyelle ne compte pas comme syllabe (fuyait -> f-yi-jɛ = 2, pas 3).
+     voyelle ne compte pas comme syllabe (fuyait -> f-yi-jɛ = 2, pas 3) —
+     SAUF si la voyelle suivante appartient au MOT SUIVANT (barrière de
+     mot passée à count_syllables) : c’est alors un hiatus et le y est le
+     noyau /y/, compté (étendue où -> …-dy-u = 2 syllabes pour « due où »).
      Un e final-ish dont le mot a déjà sa voyelle ne consomme jamais un
      segment voyelle suivant (sinon il vole la voyelle du mot suivant).
+
+2.1i Suite nasale chevauchant une frontière de mot : « comment il » ->
+     run « ɑ̃i » = ɑ̃ de comment + i de il. Quand le mot suivant commence
+     par une voyelle, on ne garde que la voyelle nasale et le reste du
+     run est laissé au mot suivant (comment-il -> kɔ-mɑ̃-il, 3 syllabes).
+
+2.1j Run glide+voyelle devant un mot à initiale vocalique : la 2e voyelle
+     du run appartient au mot suivant (étendue où -> « yu » = y de étendue
+     + u de où) ; le digramme « ue » ne l’avale pas entière (règle 2.1f).
+
+2.1k Nasale en coda léguée au mot suivant : « quand nous » -> kɑ̃-nu,
+     le n appartient à « nous ». La nasale n’est cédée que si elle suit
+     une voyelle dans le mot courant, que la queue restante est muette
+     et que le mot suivant commence par la même nasale — jamais à
+     l’initiale d’un mot (« nous nous » garde son n : nu-nu).
+
+2.1l E après un y prononcé comme glide : « appuyer » -> a-p-yi-j-e, le
+     « j » et la voyelle qui suivent sont consommés avec le e
+     (ap-yi-je), sinon le « j » bloquerait l’alignement du mot suivant.
 
 2.2  Segmentation en « runs » voyelle/consononne ; un run voyelle est
      découpé par mot : « violent héros » -> segment ɑ̃e = ɑ̃ + é de héros.

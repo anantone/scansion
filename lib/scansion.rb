@@ -10,7 +10,6 @@
 #     élidé devant un mot à initiale vocalique (élision / h muet)
 #   * le e muet en fin de vers n'est pas compté, ni devant une pause
 #     graphique (, ; : ! ? … —) : rêche, -> ʁɛʃ
-#     (--keep-line-end-e pour le compter en fin de vers, p. ex. rime féminine)
 #   * la terminaison -ent est prononcée devant une consonne ou un h aspiré
 #     à l'intérieur d'un vers, élidée devant une voyelle / un h muet / en fin
 #     de vers (avec liaison du t devant une voyelle : peuplent à -> pœplt-a) ;
@@ -47,7 +46,7 @@
 # deux passes.
 #
 # Utilisation :
-#   scansion [--keep-line-end-e] [--no-dierese] [-s|--syllables] [FILE|-]
+#   scansion [--no-dierese] [-s|--syllables] [FILE|-]
 #
 # Exemple (un alexandrin de 12 syllabes — e muet interne restauré dans
 # « langueur » -> lɑ̃-gœʁ et « rêveries » -> ʁɛ-və-ʁi ; le -e final de
@@ -136,10 +135,13 @@ module Scansion
 
   # Exceptions à la règle « -Cr- + e muet » (docs/scansion_rules.txt 1.5d) :
   # dans ces mots, le e final EST prononcé devant une consonne
-  # (entre -> ɑ̃-tʁə, ventre -> vɑ̃-tʁə), contrairement à arbre -> aʁbʁ,
+  # (astre -> as-tʁə, entendre -> ɑ̃-tɑ̃-dʁə, entre -> ɑ̃-tʁə,
+  # être -> ɛ-tʁə, guerre -> gɛ-ʁə, maître -> mɛ-tʁə, moindre -> mwɛ̃-dʁə,
+  # œuvre -> œ-vʁə, ventre -> vɑ̃-tʁə...), contrairement à arbre -> aʁbʁ,
   # mettre -> mɛtʁ, fièvre -> fjɛvʁ. Devant une voyelle ou en fin de vers,
   # l'élagage normal s'applique toujours (élision / non compté).
-  CR_E_PRONOUNCED = %w[entre ventre].freeze
+  CR_E_PRONOUNCED = %w[astre battre croître entendre entre être guerre hydre
+                      maître moindre œuvre ombre peindre tonnerre ventre].freeze
 
   Result = Struct.new(:text, :raw, :phones, :syllables, :aligned, :dierese,
                       keyword_init: true) do
@@ -292,6 +294,54 @@ module Scansion
         return true
       end
 
+      # DIÉRÈSE du « u » : un « u » suivi d'un « é/è », d'un « eu » (majestueux
+      # -> ma-jes-tu-eux), ou d'un « a » final (± s/x), que espeak-ng a rendu
+      # par le glide « y/ɥ » compte DOUBLE en vers classique (nuée -> nu-ée,
+      # exténuée -> ex-té-nu-ée, majestueux -> ma-jes-tu-eux, et passé simple
+      # en -ua : ruas -> ru-as). Limité à ces cas pour ne pas scinder les
+      # « ue »/« ua » internes (ruelle -> ʁɥɛl, nuage -> nyaʒ, 1 syllabe).
+      # Le glide est absorbé sans être émis : la voyelle restaurée « u » tient
+      # lieu de noyau, et la suite de la voyelle (le « e » de « é », le « a »
+      # de « rua ») reste dans le segment courant.
+      if dierese && ch == "u" &&
+         (word[i + 1].to_s.match?(/[éè]/) ||
+          word[(i + 1)..].to_s.match?(/\Aa(?:[sx])?\z/) ||
+          word[(i + 1)..].to_s.start_with?("eu")) &&
+         head[0].match?(/[yɥ]/) &&
+         (head.each_char.count { |c| c.match?(VOWEL_PHONE) } >= 2 ||
+          (segs[cursor + 1] && segs[cursor + 1][0].match?(VOWEL_PHONE)))
+        out << ["u", true] # voyelle restaurée : diérèse
+        if head.length > 1
+          segs[cursor] = head[1..] # garder le noyau (le e de é), absorber le glide
+        else
+          self.cursor += 1 # glide isolé (ɥ) : le consommer
+        end
+        self.i += 1
+        self.prev_vowel_phone = true
+        return true
+      end
+
+      # DIÉRÈSE du « ou » devant « a » : un « ou » suivi d'un « a » que
+      # espeak-ng a rendu par le glide « w » compte DOUBLE en vers classique
+      # (couardise -> cou-ar-dise, joua -> jou-a). Le glide « w » est absorbé
+      # sans être émis, la voyelle restaurée « u » tient lieu de noyau, et le
+      # « a » reste dans le segment courant.
+      if dierese && ch == "o" && word[i + 1] == "u" &&
+         word[i + 2].to_s == "a" &&
+         head[0] == "w" &&
+         (head.length > 1 ||
+          (segs[cursor + 1] && segs[cursor + 1][0].match?(VOWEL_PHONE)))
+        out << ["u", true] # voyelle restaurée : diérèse (le « ou » vaut u)
+        if head.length > 1
+          segs[cursor] = head[1..] # garder le « a », absorber le « w »
+        else
+          self.cursor += 1 # glide isolé : le consommer
+        end
+        self.i += 2 # consommer « o » et « u »
+        self.prev_vowel_phone = true
+        return true
+      end
+
       if head_vowel &&
          !Scansion.final_e_before_vowel?(word, i, head, out, next_vowel_initial)
         # (un e quasi final devant un mot SUIVANT à initiale vocalique ne
@@ -335,7 +385,12 @@ module Scansion
         # laisser le reste au mot suivant.
         boundary_run = next_vowel_initial && digraph.to_i > 1 &&
                        run_vowels == digraph && !glide_run
-        if digraph && !boundary_run && (run_vowels <= digraph || glide_run)
+        # une suite glide+voyelle de 2 noyaux devant un mot suivant à initiale
+        # vocalique ne peut pas être avalée entière : la 2e voyelle appartient
+        # au mot suivant (étendue où -> « yu » = y de étendue + u de où)
+        swallow_run = next_vowel_initial && run_vowels > digraph.to_i
+        if digraph && !boundary_run && !swallow_run &&
+           (run_vowels <= digraph || glide_run)
           out << [head, false]
           self.cursor += 1
           eat = 2
@@ -456,13 +511,27 @@ module Scansion
         if i >= 2 && word[i - 1] == "r" &&
            !word[i - 2].match?(VOWEL_LETTER) &&
            Scansion.e_muet_tail?(word, i) &&
-           !CR_E_PRONOUNCED.include?(word)
+           !Scansion.cr_e_pronounced?(word)
           # e muet après un cluster -Cr- est MUET même devant une consonne :
           # sombre -> sɔ̃bʁ, nombre -> nɔ̃bʁ, mettre -> mɛtʁ, fièvre -> fjɛvʁ
           # (mais tables -> tablə : le -l- est conservé).
-          # SAUF entre/ventre (CR_E_PRONOUNCED) : leur e final est prononcé
-          # devant une consonne -> ɑ̃-tʁə, vɑ̃-tʁə, donc on laisse passer à
+          # SAUF les exceptions CR_E_PRONOUNCED (voir cr_e_pronounced?) : leur
+          # e final est prononcé devant une consonne, donc on laisse passer à
           # la restauration normale ci-dessous.
+          self.i += 1
+          self.prev_vowel_phone = true
+          return true
+        end
+        # e après un y prononcé comme glide (appuyer -> a-p-yi-j-e) : le « j »
+        # et la voyelle qui suivent appartiennent à ce « e » (le r final reste
+        # muet) — sinon le « j » bloquerait l'alignement du mot suivant
+        if head[0] == "j" && i.positive? && word[i - 1] == "y"
+          out << [head, false]
+          self.cursor += 1
+          if segs[cursor] && segs[cursor][0].match?(VOWEL_PHONE)
+            out << [segs[cursor], false]
+            self.cursor += 1
+          end
           self.i += 1
           self.prev_vowel_phone = true
           return true
@@ -621,6 +690,19 @@ module Scansion
         return true
       end
 
+      # une nasale en coda que le mot suivant commence aussi par cette nasale
+      # peut être l'initiale du mot suivant (quand nous -> kɑ̃-nu : le n
+      # appartient à « nous ») : si la nasale suit une voyelle, que le reste du
+      # mot courant est une terminaison muette et que la tête est suivie d'une
+      # voyelle, ne pas consommer ici (sinon « nous nous » perdrait son n)
+      if next_word && next_word[0] == ch && head[0] == exp &&
+         ch.match?(/[nm]/) && i.positive? && word[i - 1].match?(VOWEL_LETTER) &&
+         word[(i + 1)..].to_s.match?(SILENT_TAILS) &&
+         segs[cursor + 1] && segs[cursor + 1][0].match?(VOWEL_PHONE)
+        self.i = n
+        return true
+      end
+
       if head[0] == exp || (ch == "w" && head[0] == "v") || # wagon -> vagɔ̃
          (i == n - 1 && FINAL_DEVOICE[ch] == head[0]) # dévoisement final (Austerlitz -> ...lits)
         out << [head, false]
@@ -666,10 +748,22 @@ module Scansion
         # n/m fermé par une terminaison muette, rendu comme une voyelle nasale
         # (soyons -> swa-jɔ̃, le s final est muet). Avancer seulement après la
         # lettre nasale : un -t final devant un mot à initiale vocalique est une
-        # liaison et doit encore être consommé (voyant à -> vwa-jɑ̃-ta)
-        out << [head, false]
-        self.cursor += 1
-        self.i += 1
+        # liaison et doit encore être consommé (voyant à -> vwa-jɑ̃-ta).
+        # Si la suite nasale contient une voyelle de plus et que le mot suivant
+        # commence par une voyelle, cette voyelle appartient au mot suivant
+        # (comment il -> « ɑ̃i » = ɑ̃ de comment + i de il) : on ne garde que la
+        # nasale et on laisse le reste dans le segment courant.
+        units = head.scan(/#{VOWEL_PHONE.source}\p{Mn}*/)
+        if next_vowel_initial && units.size > 1
+          out << [units.first, false]
+          segs[cursor] = units[1..].join
+          self.run_split = true
+          self.i = n
+        else
+          out << [head, false]
+          self.cursor += 1
+          self.i += 1
+        end
       elsif Scansion.silent_tail_from?(word, i)
         # terminaison muette quel que soit le segment suivant (et, tables,
         # dont, fronts, coups...) : les lettres restantes ne sont pas prononcées
@@ -712,7 +806,7 @@ module Scansion
     # PAS non plus une élision pour les mots en -Cr- à e muet (sombre,
     # mettre) : leur e est muet de toute façon, même devant un h aspiré
     # (sombre héros -> sɔ̃-bʁe-ʁo, pas sɔ̃-bʁə-...) ; CR_E_PRONOUNCED
-    # (entre, ventre) est exempté.
+    # (voir cr_e_pronounced?) est exempté.
     def elidable_final_e?(word, i, head, out, next_vowel_initial, next_word)
       return false unless final_e_before_vowel?(word, i, head, out, next_vowel_initial)
       # un e FINAL en -Cr- (sombre, mettre — terminaison vide/x, PAS avant un
@@ -720,19 +814,25 @@ module Scansion
       # sɔ̃-bʁe-ʁo), donc ne jamais le restaurer comme élision ; la branche
       # -Cr- de step_vowel s'en charge. Les mots en -es (propres airs ->
       # pʁɔ-pʁə-zɛʁ) gardent leur e via la règle 1.5. CR_E_PRONOUNCED
-      # (entre, ventre) exempté.
+      # (voir cr_e_pronounced?) exempté.
       return false if cr_mute_final_e?(word, i)
       return false if %w[e ɛ].include?(head[0]) && !head.match?(/̃/) &&
                       next_word.to_s.match?(NEXT_VOWELISH)
       true
     end
 
+    # CR_E_PRONOUNCED avec tolérance pour le pluriel en -s/-x (astres, hydres,
+    # tonnerres, maîtres…)
+    def cr_e_pronounced?(word)
+      CR_E_PRONOUNCED.any? { |w| word == w || word == "#{w}s" || word == "#{w}x" }
+    end
+
     # word[i] est un e strictement final (terminaison vide ou x) après un
     # cluster -Cr- dont le e est muet (sombre -> sɔ̃bʁ, mettre -> mɛtʁ) —
-    # SAUF CR_E_PRONOUNCED (entre -> ɑ̃-tʁə, ventre -> vɑ̃-tʁə).
+    # SAUF CR_E_PRONOUNCED (astre -> as-tʁə, entendre -> ɑ̃-tɑ̃-dʁə, …).
     def cr_mute_final_e?(word, i)
       i >= 2 && word[i - 1] == "r" && !word[i - 2].match?(VOWEL_LETTER) &&
-        word[(i + 1)..].to_s.match?(/\A(?:x)?\z/) && !CR_E_PRONOUNCED.include?(word)
+        word[(i + 1)..].to_s.match?(/\A(?:x)?\z/) && !cr_e_pronounced?(word)
     end
 
     # -- phonétisation -------------------------------------------------
@@ -866,6 +966,10 @@ module Scansion
       prev_vowel = nil
       phones.each_with_index do |ph, k|
         next unless ph[0].match?(VOWEL_PHONE)
+        # un glide y/ɥ suivi d'une voyelle n'est pas un noyau (même règle que
+        # count_syllables) : il ne déclenche aucune coupure de syllabe
+        next if (ph[0] == "y" || ph[0] == "ɥ") &&
+                phones[k + 1] && phones[k + 1][0].match?(VOWEL_PHONE)
         if prev_vowel
           cut = nil
           inside = barriers.select { |b, _| b > prev_vowel && b < k }
@@ -990,12 +1094,18 @@ module Scansion
     # Décompte des syllabes : chaque phone voyelle compte, SAUF un glide
     # rendu « y » (ɥ) directement suivi d'une voyelle — fuyait -> f-yi-jɛ fait
     # 2 syllabes, pas 3 (le y est le glide de « ui », pas un noyau)
-    def count_syllables(phones)
+    # barriers = débuts de mots dans phones (voir mark_syllables) : un glide
+    # y/ɥ suivi d'une voyelle n'est un glide (non compté) que si la voyelle
+    # appartient AU MÊME mot (fuyait -> f-yi-jɛ = 2) ; entre deux mots c'est
+    # un hiatus et le y est le noyau /y/ compté (étendue où -> ...-dy-u = 2)
+    def count_syllables(phones, barriers = [])
+      word_starts = barriers.map { |b| b[0] }
       count = 0
       phones.each_with_index do |ph, k|
         next unless ph[0].match?(VOWEL_PHONE)
         if (ph[0] == "y" || ph[0] == "ɥ") && phones[k + 1] &&
-           phones[k + 1][0].match?(VOWEL_PHONE)
+           phones[k + 1][0].match?(VOWEL_PHONE) &&
+           !word_starts.include?(k + 1)
           next
         end
         count += 1
@@ -1005,8 +1115,9 @@ module Scansion
 
     # Détection de contexte de poésie classique : true quand les lignes
     # voisines (fenêtre autour de idx) tombent majoritairement dans la bande
-    # alexandrine 10-13 (11/13 sont eux-mêmes des candidats diérèse/surcompte,
-    # donc ils appartiennent à la bande). La diérèse ne peut être inférée que
+    # alexandrine 10-13 ou la bande octosyllabe 6-9 (11/13 et 7 y sont des
+    # candidats diérèse/surcompte, donc ils appartiennent à la bande). La
+    # diérèse ne peut être inférée que
     # dans un contexte aussi régulier — JAMAIS en poésie contemporaine
     # (samples/), où elle ne peut pas être déduite d'un nombre de syllabes
     # cible. counts : décomptes de syllabes par ligne (nil pour les lignes
@@ -1017,7 +1128,9 @@ module Scansion
       neigh = counts[lo..hi].compact
       neigh.delete_at(idx - lo) if idx >= lo && idx <= hi
       return false if neigh.empty?
-      neigh.count { |c| (10..13).cover?(c) }.to_f / neigh.size >= threshold
+      # bande alexandrine 10-13 (11/13 = candidats diérèse) OU bande
+      # octosyllabe 6-9 (les 7 y sont des candidats diérèse)
+      neigh.count { |c| (10..13).cover?(c) || (6..9).cover?(c) }.to_f / neigh.size >= threshold
     end
 
     # Point d'entrée public. dierese: :auto re-scanne avec des diérèses quand
@@ -1025,12 +1138,12 @@ module Scansion
     # cache : Hash optionnel partagé entre appels (utilisé par process_lines)
     # pour que chaque paire (ligne, options) ne soit scannée — et espeak-ng
     # relancé — qu'une fois.
-    def process_line(line, keep_line_end_e:, dierese: false, cache: nil)
-      r = scan_line(line, keep_line_end_e: keep_line_end_e, dierese: false, cache: cache)
+    def process_line(line, dierese: false, cache: nil)
+      r = scan_line(line, dierese: false, cache: cache)
       if dierese == true
-        r = scan_line(line, keep_line_end_e: keep_line_end_e, dierese: true, cache: cache)
+        r = scan_line(line, dierese: true, cache: cache)
       elsif dierese == :auto && r.aligned && !METER.include?(r.syllables)
-        r2 = scan_line(line, keep_line_end_e: keep_line_end_e, dierese: true, cache: cache)
+        r2 = scan_line(line, dierese: true, cache: cache)
         r = r2 if r2.aligned && METER.include?(r2.syllables)
       end
       r
@@ -1039,11 +1152,11 @@ module Scansion
     # Point d'entrée par lot (deux passes). Avec dierese: :auto, la diérèse
     # n'est appliquée que là où le contexte alentour est classique
     # (classical_context?) — jamais en poésie contemporaine.
-    def process_lines(lines, keep_line_end_e:, dierese: :auto)
+    def process_lines(lines, dierese: :auto)
       cache = {}
       counts = lines.map do |l|
         next nil if l.strip.empty?
-        r = scan_line(l, keep_line_end_e: keep_line_end_e, dierese: false, cache: cache)
+        r = scan_line(l, dierese: false, cache: cache)
         r.aligned ? r.syllables : nil
       end
       lines.each_with_index.map do |l, i|
@@ -1051,24 +1164,23 @@ module Scansion
             when :auto then (classical_context?(counts, i) ? :auto : false)
             else dierese
             end
-        process_line(l, keep_line_end_e: keep_line_end_e, dierese: d, cache: cache)
+        process_line(l, dierese: d, cache: cache)
       end
     end
 
     # Enveloppe mémoïsante autour de compute_scan_line : avec un cache partagé
-    # (voir process_lines), chaque triplet (ligne, keep_line_end_e, dierese)
-    # n'est calculé — et espeak-ng relancé — qu'une fois.
-    def scan_line(line, keep_line_end_e:, dierese: false, cache: nil)
+    # (voir process_lines), chaque paire (ligne, dierese)
+    # n'est calculée — et espeak-ng relancé — qu'une fois.
+    def scan_line(line, dierese: false, cache: nil)
       if cache
-        key = [line, keep_line_end_e, dierese]
+        key = [line, dierese]
         return cache[key] if cache.key?(key)
-        return cache[key] = compute_scan_line(line, keep_line_end_e: keep_line_end_e,
-                                                       dierese: dierese)
+        return cache[key] = compute_scan_line(line, dierese: dierese)
       end
-      compute_scan_line(line, keep_line_end_e: keep_line_end_e, dierese: dierese)
+      compute_scan_line(line, dierese: dierese)
     end
 
-    def compute_scan_line(line, keep_line_end_e:, dierese: false)
+    def compute_scan_line(line, dierese: false)
       # normalise une fois pour que words_of et espeak voient les mêmes lettres
       clean = normalize_input(line)
       words = words_of(clean)
@@ -1115,7 +1227,7 @@ module Scansion
 
         next_word = (words_out[k + 1] || {})[:word]
         if next_word.nil?                # fin de vers : e muet non compté
-          pairs.pop unless keep_line_end_e
+          pairs.pop
         elsif elides_before?(next_word)  # élision devant une voyelle / un h muet (pas un h aspiré)
           pairs.pop
         elsif paused[k]                  # devant une pause (, ; : ! ? … —)
@@ -1130,10 +1242,10 @@ module Scansion
         w[:pairs].each { |ph, _| flat << ph }
       end
       phones = mark_syllables(flat, barriers)
-      syllables = count_syllables(flat)
+      syllables = count_syllables(flat, barriers)
 
       dier = words_out.sum do |w|
-        w[:pairs].count { |ph, restored| restored && ph == "i" }
+        w[:pairs].count { |ph, restored| restored && %w[i u].include?(ph) }
       end
       Result.new(text: line, raw: raw, phones: phones,
                  syllables: syllables, aligned: aligned, dierese: dier)
@@ -1146,12 +1258,9 @@ module Scansion
     # reste sans effet de bord : pas d'OptionParser qui consommerait l'ARGV de
     # l'hôte, pas de mutation d'encodage global.
     def main(argv = ARGV)
-      options = { keep_line_end_e: false, syllables_only: false, dierese: :auto }
+      options = { syllables_only: false, dierese: :auto }
       OptionParser.new do |opts|
         opts.banner = "Utilisation : #{File.basename($PROGRAM_NAME)} [options] [FILE|-]"
-        opts.on("--keep-line-end-e", "Compter l'e muet en fin de vers") do
-          options[:keep_line_end_e] = true
-        end
         opts.on("--no-dierese", "Désactiver la diérèse contextuelle (corpus contemporain)") do
           options[:dierese] = false
         end
@@ -1196,8 +1305,7 @@ module Scansion
         end
 
       lines = lines.to_a.map(&:chomp)
-      process_lines(lines, keep_line_end_e: options[:keep_line_end_e],
-                           dierese: options[:dierese]).each do |res|
+      process_lines(lines, dierese: options[:dierese]).each do |res|
         next if res.text.strip.empty?
 
         if options[:syllables_only]

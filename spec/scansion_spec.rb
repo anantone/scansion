@@ -19,8 +19,8 @@ RSpec.describe Scansion do
     end
   end
 
-  def process(line, keep_line_end_e: false)
-    described_class.process_line(line, keep_line_end_e: keep_line_end_e)
+  def process(line)
+    described_class.process_line(line)
   end
 
   describe ".segments" do
@@ -78,12 +78,6 @@ RSpec.describe Scansion do
       stub_espeak("la table" => "latabl")
       r = process("la table")
       expect(r).to have_attributes(phones: "la-tabl", syllables: 2)
-    end
-
-    it "le compte si demandé (--keep-line-end-e)" do
-      stub_espeak("la table" => "latabl")
-      r = process("la table", keep_line_end_e: true)
-      expect(r).to have_attributes(phones: "la-ta-blə", syllables: 3)
     end
 
     it "élide l'e final devant un mot à initiale vocalique" do
@@ -262,7 +256,46 @@ RSpec.describe Scansion do
     end
   end
 
-  describe "exceptions -Cr- (entre, ventre)" do
+  describe "exceptions -Cr- (astre, entendre, entre, ventre)" do
+    it "compte le e final de « entendre » devant une consonne (alexandrine à 12)" do
+      stub_espeak("Pour t'entendre sonner, je monte sur ma tour," =>
+                  "puʁtɑ̃tɑ̃dʁsɔneʒəmɔ̃tsyʁmatuʁ")
+      r = process("Pour t'entendre sonner, je monte sur ma tour,")
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("puʁ-tɑ̃-tɑ̃-dʁə-sɔ-ne-ʒə-mɔ̃-tə-syʁ-ma-tuʁ")
+    end
+
+    it "ne compte pas le e de « entendre » en fin de vers" do
+      stub_espeak("entendre" => "ɑ̃tɑ̃dʁ")
+      r = process("entendre")
+      expect(r).to have_attributes(aligned: true, phones: "ɑ̃-tɑ̃dʁ", syllables: 2)
+    end
+
+    it "élide le e de « entendre » devant une voyelle" do
+      stub_espeak("entendre ami" => "ɑ̃tɑ̃dʁami")
+      r = process("entendre ami")
+      expect(r).to have_attributes(aligned: true, phones: "ɑ̃-tɑ̃dʁ-a-mi", syllables: 4)
+    end
+
+    it "compte le e final de « astre » devant une consonne (as-tʁə, 2 syllabes)" do
+      stub_espeak("L'astre n'est encor qu'étincelle ;" => "lastʁnɛtɑ̃kɔʁketɛ̃sɛl")
+      r = process("L'astre n'est encor qu'étincelle ;")
+      expect(r).to have_attributes(aligned: true, syllables: 8)
+      expect(r.phones).to eq("la-stʁə-nɛt-ɑ̃-kɔʁ-ke-tɛ̃-sɛl")
+    end
+
+    it "ne compte pas le e de « astre » en fin de vers" do
+      stub_espeak("l'astre" => "lastʁ")
+      r = process("l'astre")
+      expect(r).to have_attributes(aligned: true, phones: "lastʁ", syllables: 1)
+    end
+
+    it "élide le e de « astre » devant une voyelle (comme un mot normal)" do
+      stub_espeak("l'astre ami" => "lastʁami")
+      r = process("l'astre ami")
+      expect(r).to have_attributes(aligned: true, phones: "lastʁ-a-mi", syllables: 3)
+    end
+
     it "compte le e final de « entre » devant une consonne (ɑ̃-tʁə)" do
       stub_espeak("l'amour est mort entre tes bras" => "lamuʁɛmɔʁɑ̃tʁtebʁa")
       r = process("l'amour est mort entre tes bras")
@@ -289,6 +322,19 @@ RSpec.describe Scansion do
       r = process("un grand arbre")
       expect(r.phones).to eq("œ̃ɡ-ʁɑ̃-taʁbʁ")
       expect(r.syllables).to eq(3)
+    end
+
+    it "compte le e final de « être » (peut-être) devant une consonne (pø-ɛ-tʁə)" do
+      stub_espeak("Ô lâche ! Et peut-être demain," => "olaʃepøɛtʁdəmɛ̃")
+      r = process("Ô lâche ! Et peut-être demain,")
+      expect(r).to have_attributes(aligned: true, syllables: 8)
+      expect(r.phones).to eq("o-laʃ-e-pø-ɛ-tʁə-də-mɛ̃")
+    end
+
+    it "ne compte pas le e de « être » en fin de vers (peut-être -> pø-ɛtʁ)" do
+      stub_espeak("peut-être" => "pøɛtʁ")
+      r = process("peut-être")
+      expect(r).to have_attributes(aligned: true, phones: "pø-ɛtʁ", syllables: 2)
     end
   end
 
@@ -334,8 +380,7 @@ RSpec.describe Scansion do
   describe "diérèse" do
     it "coupe un i-glide en deux syllabes avec dierese: true (violent -> vi-jɔ...)" do
       stub_espeak("un violent héros" => "œ̃vjolɑ̃eʁo")
-      r = described_class.process_line("un violent héros",
-                                       keep_line_end_e: false, dierese: true)
+      r = described_class.process_line("un violent héros", dierese: true)
       expect(r).to have_attributes(aligned: true, dierese: 1, syllables: 6)
       expect(r.phones).to eq("œ̃-vi-jo-lɑ̃-e-ʁo")
     end
@@ -346,7 +391,232 @@ RSpec.describe Scansion do
       expect(r.dierese).to eq(0)
       expect(r.phones).to eq("œ̃-vjo-lɑ̃-e-ʁo")
     end
+
+    it "coupe un u-glide en deux syllabes avec dierese: true (nuées -> nu-ées)" do
+      stub_espeak("Vous surgissez ! voici qu'à travers les nuées" =>
+                  "vusyʁʒisevwasikatʁavɛʁlenye")
+      r = described_class.process_line("Vous surgissez ! voici qu'à travers les nuées",
+                                       dierese: true)
+      expect(r).to have_attributes(aligned: true, dierese: 1, syllables: 12)
+      expect(r.phones).to eq("vu-syʁ-ʒi-se-vwa-si-ka-tʁa-vɛʁ-le-nu-e")
+    end
+
+    it "coupe le u de « exténuées » (ex-té-nu-ée, alexandrine à 12)" do
+      stub_espeak("Liberté, qu'invoquaient nos voix exténuées," =>
+                  "libɛʁtekɛ̃vokɛnovwaɛkstenye")
+      r = described_class.process_line("Liberté, qu'invoquaient nos voix exténuées,",
+                                       dierese: true)
+      expect(r).to have_attributes(aligned: true, dierese: 1, syllables: 12)
+      expect(r.phones).to eq("li-bɛʁ-te-kɛ̃-vo-kɛ-no-vwa-ɛk-ste-nu-e")
+    end
+
+    it "garde « nuées » à 1 syllabe sans diérèse (contemporain)" do
+      stub_espeak("Vous surgissez ! voici qu'à travers les nuées" =>
+                  "vusyʁʒisevwasikatʁavɛʁlenye")
+      r = process("Vous surgissez ! voici qu'à travers les nuées")
+      expect(r).to have_attributes(dierese: 0, syllables: 11)
+      expect(r.phones).to eq("vu-syʁ-ʒi-se-vwa-si-ka-tʁa-vɛʁ-le-nye")
+    end
+
+    it "ne scinde pas le « ue » inaccentué même avec dierese: true (ruelle -> ʁyɛl)" do
+      stub_espeak("une ruelle" => "ynʁyɛl")
+      r = described_class.process_line("une ruelle", dierese: true)
+      expect(r).to have_attributes(aligned: true, dierese: 0, syllables: 3)
+      expect(r.phones).to eq("y-nə-ʁyɛl")
+    end
+
+    it "coupe le « ua » final en deux syllabes avec dierese: true (ruas -> ru-as)" do
+      stub_espeak("Toi qui, le front levé, te ruas dans le crime," =>
+                  "twakiləfʁɔ̃ləvetəʁyadɑ̃ləkʁim")
+      r = described_class.process_line("Toi qui, le front levé, te ruas dans le crime,",
+                                       dierese: true)
+      expect(r).to have_attributes(aligned: true, dierese: 1, syllables: 12)
+      expect(r.phones).to eq("twa-ki-lə-fʁɔ̃-lə-ve-tə-ʁu-a-dɑ̃-lə-kʁim")
+    end
+
+    it "garde « ruas » à 1 syllabe sans diérèse (contemporain)" do
+      stub_espeak("Toi qui, le front levé, te ruas dans le crime," =>
+                  "twakiləfʁɔ̃ləvetəʁyadɑ̃ləkʁim")
+      r = process("Toi qui, le front levé, te ruas dans le crime,")
+      expect(r).to have_attributes(dierese: 0, syllables: 11)
+      expect(r.phones).to eq("twa-ki-lə-fʁɔ̃-lə-ve-tə-ʁya-dɑ̃-lə-kʁim")
+    end
+
+    it "ne scinde pas le « ua » interne (nuage -> nyaʒ, 1 syllabe) même avec dierese: true" do
+      stub_espeak("un nuage" => "œ̃nyaʒ")
+      r = described_class.process_line("un nuage", dierese: true)
+      expect(r).to have_attributes(aligned: true, dierese: 0, syllables: 2)
+      expect(r.phones).to eq("œ̃-nyaʒ")
+    end
+
+    it "coupe le « ou » devant « a » avec dierese: true (couardise -> cou-ar-dise)" do
+      stub_espeak("Malgré ta couardise, il faut combattre, allons !" =>
+                  "malgʁetakwaʁdizilfokɔ̃batʁalɔ̃")
+      r = described_class.process_line("Malgré ta couardise, il faut combattre, allons !",
+                                       dierese: true)
+      expect(r).to have_attributes(aligned: true, dierese: 1, syllables: 12)
+      expect(r.phones).to eq("mal-gʁe-ta-ku-aʁ-diz-il-fo-kɔ̃-batʁ-a-lɔ̃")
+    end
+
+    it "garde « couardise » à 2 syllabes sans diérèse (contemporain)" do
+      stub_espeak("Malgré ta couardise, il faut combattre, allons !" =>
+                  "malgʁetakwaʁdizilfokɔ̃batʁalɔ̃")
+      r = process("Malgré ta couardise, il faut combattre, allons !")
+      expect(r).to have_attributes(dierese: 0, syllables: 11)
+      expect(r.phones).to eq("mal-gʁe-ta-kwaʁ-diz-il-fo-kɔ̃-batʁ-a-lɔ̃")
+    end
   end
+
+describe "CR_E_PRONOUNCED étendu (guerre, maître, œuvre, battre, entendre, croître, hydre, tonnerre + pluriels)" do
+it "astre compte 2 syllabes (as-tre) : 8 syllabes au lieu de 7" do
+  stub_espeak("L'astre n'est encor qu'étincelle ;" => "lastʁnɛtɑ̃kɔʁketɛ̃sɛl")
+  r = process("L'astre n'est encor qu'étincelle ;")
+  expect(r).to have_attributes(aligned: true, syllables: 8)
+  expect(r.phones).to eq("la-stʁə-nɛt-ɑ̃-kɔʁ-ke-tɛ̃-sɛl")
+end
+it "pluriel en -s : astres -> za-stʁə (8 syllabes)" do
+  stub_espeak("Mener tous les astres la nuit ;" => "mənetulezastʁlanyi")
+  r = process("Mener tous les astres la nuit ;")
+  expect(r).to have_attributes(aligned: true, syllables: 8)
+  expect(r.phones).to eq("mə-ne-tu-le-za-stʁə-la-nyi")
+end
+it "pluriel en -s : hydres -> zi-dʁə (12 syllabes)" do
+  stub_espeak("Ne voit-il pas ramper les hydres sur leurs ventres ?" => "nəvwailpaʁɑ̃pelezidʁsyʁlœʁvɑ̃tʁ")
+  r = process("Ne voit-il pas ramper les hydres sur leurs ventres ?")
+  expect(r).to have_attributes(aligned: true, syllables: 12)
+  expect(r.phones).to eq("nə-vwa-il-pa-ʁɑ̃-pe-le-zi-dʁə-syʁ-lœʁ-vɑ̃tʁ")
+end
+it "pluriel en -s : tonnerres -> tɔ-nɛ-ʁə (8 syllabes)" do
+  stub_espeak("Et les tonnerres dans la nue," => "eletɔnɛʁdɑ̃lany")
+  r = process("Et les tonnerres dans la nue,")
+  expect(r).to have_attributes(aligned: true, syllables: 8)
+  expect(r.phones).to eq("e-le-tɔ-nɛ-ʁə-dɑ̃-la-ny")
+end
+it "guerre -> gɛ-ʁə (12 syllabes)" do
+  stub_espeak("La guerre s'est dressée, et j'ai vu, moi rêveur," => "lagɛʁsɛdʁɛseeʒevymwaʁɛvœʁ")
+  r = process("La guerre s'est dressée, et j'ai vu, moi rêveur,")
+  expect(r).to have_attributes(aligned: true, syllables: 12)
+  expect(r.phones).to eq("la-gɛ-ʁə-sɛ-dʁɛ-se-e-ʒe-vy-mwa-ʁɛ-vœʁ")
+end
+it "maître -> mɛ-tʁə (12 syllabes)" do
+  stub_espeak("Comme un maître qui rentre en sa maison déserte," => "kɔmœ̃mɛtʁkiʁɑ̃tʁɑ̃samɛzɔ̃dezɛʁt")
+  r = process("Comme un maître qui rentre en sa maison déserte,")
+  expect(r).to have_attributes(aligned: true, syllables: 12)
+  expect(r.phones).to eq("kɔm-œ̃-mɛ-tʁə-ki-ʁɑ̃tʁ-ɑ̃-sa-mɛ-zɔ̃-de-zɛʁt")
+end
+it "œuvre -> nœ-vʁə (12 syllabes)" do
+  stub_espeak("Parce qu'il ne fait pas son œuvre tout de suite," => "paʁskilnəfɛpasɔ̃nœvʁtudəsyit")
+  r = process("Parce qu'il ne fait pas son œuvre tout de suite,")
+  expect(r).to have_attributes(aligned: true, syllables: 12)
+  expect(r.phones).to eq("paʁ-sə-kil-nə-fɛ-pa-sɔ̃-nœ-vʁə-tu-də-syit")
+end
+it "entendre -> tɑ̃-dʁə (12 syllabes)" do
+  stub_espeak("Pour t'entendre sonner, je monte sur ma tour," => "puʁtɑ̃tɑ̃dʁsɔneʒəmɔ̃tsyʁmatuʁ")
+  r = process("Pour t'entendre sonner, je monte sur ma tour,")
+  expect(r).to have_attributes(aligned: true, syllables: 12)
+  expect(r.phones).to eq("puʁ-tɑ̃-tɑ̃-dʁə-sɔ-ne-ʒə-mɔ̃-tə-syʁ-ma-tuʁ")
+end
+it "combattre -> kɔ̃-batʁ (12 syllabes avec la diérèse de couardise)" do
+  stub_espeak("Malgré ta couardise, il faut combattre, allons !" => "malgʁetakwaʁdizilfokɔ̃batʁalɔ̃")
+  r = described_class.process_line("Malgré ta couardise, il faut combattre, allons !", dierese: true)
+  expect(r).to have_attributes(aligned: true, syllables: 12)
+  expect(r.phones).to eq("mal-gʁe-ta-ku-aʁ-diz-il-fo-kɔ̃-batʁ-a-lɔ̃")
+end
+it "diérèse u+eu : majestueux -> ma-jes-tu-eux (6 syllabes)" do
+  stub_espeak("Majestueux amour !" => "maʒɛstyøzamuʁ")
+  r = described_class.process_line("Majestueux amour !", dierese: true)
+  expect(r).to have_attributes(aligned: true, syllables: 6)
+  expect(r.phones).to eq("ma-ʒɛs-tu-ø-za-muʁ")
+end
+it "sans diérèse : ma-ʒɛs-tyø (5 syllabes)" do
+  stub_espeak("Majestueux amour !" => "maʒɛstyøzamuʁ")
+  r = process("Majestueux amour !")
+  expect(r).to have_attributes(aligned: true, syllables: 5)
+  expect(r.phones).to eq("ma-ʒɛst-yø-za-muʁ")
+end
+it "le n de « quand » est l'initiale de « nous » (kɑ̃-nu) et « ombre » garde son e (l'om-bʁə) : 12 syllabes" do
+  stub_espeak("Quand nous marchons, courbés, dans l'ombre du martyre," => "kɑ̃numaʁʃɔ̃kuʁbedɑ̃lɔ̃bʁdymaʁtiʁ")
+  r = process("Quand nous marchons, courbés, dans l'ombre du martyre,")
+  expect(r).to have_attributes(aligned: true, syllables: 12)
+  expect(r.phones).to eq("kɑ̃-nu-maʁ-ʃɔ̃-kuʁ-be-dɑ̃-lɔ̃-bʁə-dy-maʁ-tiʁ")
+end
+it "idem : aligné à 12 syllabes" do
+  stub_espeak("Mais, quand nous étendons les bras dans cette brume," => "mɛkɑ̃nuzetɑ̃dɔ̃lebʁadɑ̃sɛtbʁym")
+  r = process("Mais, quand nous étendons les bras dans cette brume,")
+  expect(r).to have_attributes(aligned: true, syllables: 12)
+  expect(r.phones).to eq("mɛ-kɑ̃-nu-ze-tɑ̃-dɔ̃-le-bʁa-dɑ̃-sɛ-tə-bʁym")
+end
+it "« nous nous » : le n initial de « nous » n'est PAS légué (régression)" do
+  stub_espeak("Nous entendons quelqu'un derrière nous nous dire :" => "nuzɑ̃tɑ̃dɔ̃kɛlkœ̃dɛʁjɛʁnunudiʁ")
+  r = process("Nous entendons quelqu'un derrière nous nous dire :")
+  expect(r).to have_attributes(aligned: true, syllables: 12)
+  expect(r.phones).to eq("nu-zɑ̃-tɑ̃-dɔ̃-kɛlk-œ̃-dɛ-ʁjɛ-ʁə-nu-nu-diʁ")
+end
+it "suite nasale « ɑ̃i » scindée à la frontière : comment-il = 3 syllabes (8 au total)" do
+  stub_espeak("Comment il fait tout ce qu'il fait." => "kɔmɑ̃ilfɛtusəkilfɛ")
+  r = process("Comment il fait tout ce qu'il fait.")
+  expect(r).to have_attributes(aligned: true, syllables: 8)
+  expect(r.phones).to eq("kɔ-mɑ̃-il-fɛ-tu-sə-kil-fɛ")
+end
+it "idem (8 syllabes)" do
+  stub_espeak("Je sais comment il a fait l'homme," => "ʒəsɛkɔmɑ̃ilafɛlɔm")
+  r = process("Je sais comment il a fait l'homme,")
+  expect(r).to have_attributes(aligned: true, syllables: 8)
+  expect(r.phones).to eq("ʒə-sɛ-kɔ-mɑ̃-il-a-fɛ-lɔm")
+end
+it "hiatus étendue-où : le y de « dyu » est un noyau /y/ compté (8 syllabes)" do
+  stub_espeak("Et l'étendue où l'esprit passe ?" => "eletɑ̃dyulɛspʁipas")
+  r = process("Et l'étendue où l'esprit passe ?")
+  expect(r).to have_attributes(aligned: true, syllables: 8)
+  expect(r.phones).to eq("e-le-tɑ̃dy-u-lɛ-spʁi-pas")
+end
+it "le « j » de appuyer (a-p-yi-j-e) est consommé et « ombre » garde son e : 8 syllabes" do
+  stub_espeak("Appuyer dans l'ombre du vide" => "apyijedɑ̃lɔ̃bʁdyvid")
+  r = process("Appuyer dans l'ombre du vide")
+  expect(r).to have_attributes(aligned: true, syllables: 8)
+  expect(r.phones).to eq("ap-yi-je-dɑ̃-lɔ̃-bʁə-dy-vid")
+end
+it "« ombre » garde son e prononcé devant une consonne (ombres du soir -> zɔ̃-bʁə)" do
+  stub_espeak("les ombres du soir" => "lezɔ̃bʁdyswaʁ")
+  r = process("les ombres du soir")
+  expect(r).to have_attributes(aligned: true, syllables: 5)
+  expect(r.phones).to eq("le-zɔ̃-bʁə-dy-swaʁ")
+end
+it "« l'ombre » s'élide devant une voyelle (ombre = 1 syllabe)" do
+  stub_espeak("Dans l'ombre où sont les morts !" => "dɑ̃lɔ̃bʁusɔ̃lemɔʁ")
+  r = process("Dans l'ombre où sont les morts !")
+  expect(r).to have_attributes(aligned: true, syllables: 6)
+  expect(r.phones).to eq("dɑ̃-lɔ̃bʁ-u-sɔ̃-le-mɔʁ")
+end
+it "« ombres » en fin de vers : e non compté (pluriel CR_E_PRONOUNCED)" do
+  stub_espeak("suivie d'ombres" => "syividɔ̃bʁ")
+  r = process("suivie d'ombres")
+  expect(r).to have_attributes(aligned: true, syllables: 3)
+  expect(r.phones).to eq("syi-vi-dɔ̃bʁ")
+end
+  end
+
+describe "contexte classique : bande octosyllabe 6-9" do
+  it "accepte une fenêtre majoritairement en 6-9" do
+    expect(described_class.classical_context?([8, 8, 7, 8, 8], 2)).to be true
+    expect(described_class.classical_context?([6, 7, 8, 9, 6], 2)).to be true
+  end
+
+  it "rejette une fenêtre hors bandes (contemporain)" do
+    expect(described_class.classical_context?([5, 4, 3, 2, 4], 2)).to be false
+  end
+end
+
+describe "hiatus entre deux mots (count_syllables avec barrières)" do
+  it "ne traite pas le y d'un hiatus inter-mot comme un glide (dy-u = 2)" do
+    expect(described_class.count_syllables(%w[d y u], [[2, "étendue", false]])).to eq(2)
+  end
+
+  it "garde la règle du glide à l'intérieur d'un mot (f-yi-jɛ = 2)" do
+    expect(described_class.count_syllables(%w[f y i j ɛ])).to eq(2)
+    expect(described_class.count_syllables(%w[d y u])).to eq(1)
+  end
+end
 
   describe "bibliothèque sans effets de bord" do
     it "se require sans toucher à ARGV (Scansion.main n'est appelé que as script)" do

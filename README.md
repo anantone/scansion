@@ -1,9 +1,12 @@
 scansion
 ========
 
+[![Gem Version](https://badge.fury.io/rb/scansion.svg)](https://badge.fury.io/rb/scansion)
 [![Licence MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Phonétise des vers français avec [espeak-ng](https://github.com/espeak-ng/espeak-ng) et restaure le e muet (*e caduc*) selon les règles de la scansion classique, puis marque les frontières de syllabes et compte les syllabes (alexandrins, etc.).
+
+ATTENTION: PROJET EN DÉVELOPPEMENT - ne pas utiliser sans vérification
 
 La liste complète des règles, avec exemples travaillés, est dans [`docs/scansion_rules.txt`](docs/scansion_rules.txt).
 
@@ -41,7 +44,7 @@ Utilisation
 ----------------------------------------------------------------
 
 ```
-scansion [--keep-line-end-e] [--no-dierese] [-s|--syllables] [FILE|-]
+scansion [--no-dierese] [-s|--syllables] [FILE|-]
 ```
 
 ```console
@@ -52,7 +55,6 @@ Au coin du feu, dans la langueur des rêveries!
 
 Options :
 
-- `--keep-line-end-e` — compter le e muet en fin de vers (p. ex. rimes féminines)
 - `--no-dierese` — désactiver la diérèse contextuelle (corpus contemporain)
 - `-s`, `--syllables` — n'afficher que le décompte des syllabes
 
@@ -73,7 +75,7 @@ res.phones                             # => "la-bɛl-ta-blə-ʁɔ̃d"
 res.syllables                          # => 4
 res.aligned                            # => true
 
-Scansion.process_lines(lines, keep_line_end_e: false, dierese: :auto)
+Scansion.process_lines(lines, dierese: :auto)
 ```
 
 
