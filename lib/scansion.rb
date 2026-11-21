@@ -1,0 +1,1220 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+#
+# scansion.rb — phonétise des vers français en restaurant le e muet
+# (e caduc) selon les règles de la scansion classique.
+#
+# Règles implémentées :
+#   * un e muet interne suivi d'une consonne est prononcé (compté)
+#   * un e muet final est prononcé devant un mot à initiale consonantique,
+#     élidé devant un mot à initiale vocalique (élision / h muet)
+#   * le e muet en fin de vers n'est pas compté, ni devant une pause
+#     graphique (, ; : ! ? … —) : rêche, -> ʁɛʃ
+#     (--keep-line-end-e pour le compter en fin de vers, p. ex. rime féminine)
+#   * la terminaison -ent est prononcée devant une consonne ou un h aspiré
+#     à l'intérieur d'un vers, élidée devant une voyelle / un h muet / en fin
+#     de vers (avec liaison du t devant une voyelle : peuplent à -> pœplt-a) ;
+#     mais après une lettre voyelle (-uent, -ient) le e n'est jamais restauré
+#     (perpétuent le -> pɛʁpetylə, 8 syll.)
+#   * un e muet final devant un s muet est restauré (tables -> tablə)
+#
+# La liste complète des règles, avec exemples travaillés, est dans
+# docs/scansion_rules.txt.
+#
+# Note de conception : la restauration passe par l'alignement des lettres
+# orthographiques sur les segments phonétiques d'espeak-ng (voir Aligner).
+# Si l'alignement échoue pour un mot, le vers entier retombe sur la sortie
+# brute d'espeak-ng (préfixe de ligne « ~ ») : le script préfère manquer des
+# schwas plutôt que d'en inventer.
+# Limites : petite liste de h aspiré (les autres mots en h élident), pas de
+# dictionnaire d'exceptions, consonnes finales muettes approximatives.
+#
+# Dépendances : espeak-ng sur le $PATH. Backend préféré : phonemizer_ffi.rb
+# (dans ce répertoire) appelant libespeak-ng directement via le gem `ffi` —
+#   gem install ffi && apt install libespeak-ng1
+# (sur macOS avec un espeak-ng Homebrew « keg-only », définir
+# PHONEMIZER_ESPEAK_LIB).
+# Replis, dans l'ordre : l'API du gem phonemizer (`gem install phonemizer`),
+# le CLI `phonemize` qu'il fournit, puis espeak-ng directement. Le backend FFI
+# produit une IPA identique octet par octet au gem pour notre usage (asserté
+# dans spec/scansion_spec.rb).
+#
+# Structure : le module Scansion est une bibliothèque pure (le require de ce
+# fichier est sans effet de bord — pas d'OptionParser sur l'ARGV de l'hôte) ;
+# le CLI vit dans Scansion.main et ne tourne que si le fichier est exécuté
+# comme script. process_lines mémoïse scan_line par (ligne, options) pour ne
+# pas relancer espeak-ng à chaque vers lors de la détection de diérèse en
+# deux passes.
+#
+# Utilisation :
+#   scansion [--keep-line-end-e] [--no-dierese] [-s|--syllables] [FILE|-]
+#
+# Exemple (un alexandrin de 12 syllabes — e muet interne restauré dans
+# « langueur » -> lɑ̃-gœʁ et « rêveries » -> ʁɛ-və-ʁi ; le -e final de
+# « rêveries » n'est pas compté car il suit une voyelle, comme « gravée ») :
+#   $ echo "Au coin du feu, dans la langueur des rêveries!" | scansion
+#   Au coin du feu, dans la langueur des rêveries!
+#     ⇒ o-kwɛ̃-dy-fø-dɑ̃-la-lɑ̃-gœʁ-de-ʁɛ-və-ʁi   (12 syll.)
+
+require "optparse"
+require "open3"
+require_relative "scansion/version"
+
+module Scansion
+  SCHWA = "ə"
+
+  VOWEL_PHONE  = /[aeiouyɛɔəɑøœæɒʌɪ]/
+  VOWEL_LETTER = /[aeiouyàâäéèêëîïoôöùûüœ]/
+  # lettres voyelles par lesquelles un mot SUIVANT peut commencer, pour le
+  # test du « e oral » dans elidable_final_e? (remet à -> ʁəmɛta n'est pas
+  # une élision)
+  NEXT_VOWELISH = /\A[àaâäiîïoôöuùûüywœ]/u
+  GLIDE_PHONE  = /\A[jɥw]/
+  SOFT_NEXT    = %w[e i y é è ê].freeze # lettres qui adoucissent c/g
+
+  CONSONANT_DIGRAPHS = {
+    "ch" => "ʃ", "ph" => "f", "th" => "t",
+    "qu" => "k", "ss" => "s", "ck" => "k", "gn" => "ɲ",
+  }.freeze
+
+  CONSONANT_LETTERS = {
+    "b" => "b", "d" => "d", "f" => "f", "j" => "ʒ", "k" => "k",
+    "l" => "l", "m" => "m", "n" => "n", "p" => "p", "q" => "k",
+    "r" => "ʁ", "s" => "s", "t" => "t", "v" => "v", "w" => "w",
+    "z" => "z", "h" => nil, # h est muet
+  }.freeze
+
+  # Suites de lettres finales qui peuvent rester non prononcées une fois tous
+  # les segments phonétiques consommés. Toute autre chose fait échouer
+  # l'alignement (repli sur la sortie brute). Liste littérale (SILENT_TAIL_LIST)
+  # pour rester lisible ; l'expression régulière en est déduite. Ancrage aux
+  # deux extrémités, donc l'ordre des alternatives est sans importance.
+  SILENT_TAIL_LIST = %w[
+    ent ents nt nts nte ntes ns nc ms cs gts ct s t ts d x z p ps g gt
+    st ut ôt u au aux eau eaux eux ux ous r n it ds rs c f ufs oeufs m
+  ].freeze
+  SILENT_TAILS = /\A(?:#{SILENT_TAIL_LIST.map { |t| Regexp.escape(t) }.join("|")})\z/
+
+  # ce qui peut suivre un e muet quasi final avant la terminaison muette :
+  # « s » (tables), « ts » (sifflets), « ps », « x » (silex), ou rien (Philippe)
+  E_MUET_TAIL = /\A(?:s|ts?|ps|x)?\z/
+  # la terminaison après le e de la désinence verbale -ent : « nt » / « nts »
+  ENT_TAIL = /\A(?:nts?)\z/
+
+  # digrammes qu'espeak-ng peut rendre par un phone alternatif
+  DIGRAPH_ALT = { "gn" => "n" }.freeze
+
+  # digrammes de voyelles prononcés comme un seul noyau syllabique, associés
+  # au nombre de voyelles (lettres) qu'espeak-ng émet pour eux (absorber la
+  # 2e lettre ; ne pas la laisser manger la voyelle du mot suivant :
+  # ou entendre ; ui -> yi)
+  DIGRAPH_ONE_PHONE = { "ai" => 1, "au" => 1, "ou" => 1, "eu" => 1,
+                         "ei" => 1, "ay" => 1, "ey" => 1, "ui" => 2,
+                         "ue" => 1, "oe" => 2 }.freeze # boeufs -> b-øo
+
+  # lettres dont la consonne finale fait liaison devant un mot à initiale
+  # vocalique (elle reste donc l'ATTAQUE de la syllabe suivante :
+  # les amis -> lɛ-za-mi)
+  LIAISON_LETTERS = %w[s x z d g b n m].freeze
+
+  # consonne finale prononcée avec sa valeur de liaison devant une voyelle
+  # (les amis -> lɛzami, quand il -> kɑ̃til, grand ami -> gʁɑ̃tami...)
+  LIAISON_FINAL = { "s" => "z", "z" => "s", "d" => "t", "g" => "k", "b" => "p" }.freeze
+
+  # dévoisement final tel que le rend espeak-ng (Austerlitz -> ...lits)
+  FINAL_DEVOICE = { "z" => "s", "d" => "t", "b" => "p", "g" => "k", "v" => "f" }.freeze
+
+  # Petite liste de mots fréquents à h aspiré (correspondance par préfixe :
+  # « hisser » couvre aussi hissera, hissons, hissé...). Un mot à h aspiré
+  # est PHONÉTIQUEMENT à initiale vocalique (le h est muet : « hasard » ->
+  # /a-zaʁ/) mais BLOQUE l'élision/la liaison du mot précédent :
+  # « le hasard » -> lə-a-zaʁ, jamais *la-zaʁ ; « se hisser » -> sə-i-se,
+  # jamais *sise. À contraster avec le h muet : « l'homme » -> lɔm (élision).
+  # Voir h_aspiré? / elides_before?.
+  H_ASPIRE = %w[haie haine hache honte héros hérisson harpe halle
+                hurler heaume hocher hibou hisser hasard].freeze
+
+  # Exceptions à la règle « -Cr- + e muet » (docs/scansion_rules.txt 1.5d) :
+  # dans ces mots, le e final EST prononcé devant une consonne
+  # (entre -> ɑ̃-tʁə, ventre -> vɑ̃-tʁə), contrairement à arbre -> aʁbʁ,
+  # mettre -> mɛtʁ, fièvre -> fjɛvʁ. Devant une voyelle ou en fin de vers,
+  # l'élagage normal s'applique toujours (élision / non compté).
+  CR_E_PRONOUNCED = %w[entre ventre].freeze
+
+  Result = Struct.new(:text, :raw, :phones, :syllables, :aligned, :dierese,
+                      keyword_init: true) do
+    # true si le vers est retombé sur la sortie brute d'espeak-ng (pas d'alignement)
+    def fallback? = !aligned
+  end
+
+  # État mutable de l'alignement d'UN mot orthographique sur les segments
+  # phonétiques (voir align_word). Un Struct pour que les méthodes step
+  # partagent et modifient l'index de lettre / le curseur de segments sans
+  # longue liste de paramètres. step renvoie true (lettre consommée, on
+  # continue), :done (arrêt : alignement réussi tôt — terminaison muette alors
+  # que les segments sont épuisés) ou false (alignement impossible → le vers
+  # entier retombe sur espeak brut).
+  Aligner = Struct.new(
+    :word, :segs, :out, :i, :cursor, :n,
+    :prev_cons, :prev_vowel_phone, :run_split,
+    :next_vowel_initial, :next_word, :prev_fragment, :dierese,
+    keyword_init: true
+  ) do
+    def run
+      while i < n
+        r = step
+        return false if r == false
+        break if r == :done
+      end
+      true
+    end
+
+    # Consomme une lettre du mot. Aiguille vers step_vowel / step_consonant.
+    def step
+      ch = word[i]
+      two = word[i, 2]
+
+      if cursor >= segs.size
+        rest = word[i..]
+        if rest.match?(/\Aents?\z/)
+          self.i = n # désinence -ent : jamais restaurée
+        elsif rest.match?(SILENT_TAILS)
+          return :done
+        elsif i.positive? && rest[0] == word[i - 1]
+          self.i += 1 # lettre redoublée en toute fin (pierre -> pjɛʁ)
+        elsif rest.match?(/\Aes?\z/)
+          if i.positive? && word[i - 1].match?(VOWEL_LETTER)
+            self.i += 1 # e après une lettre voyelle : jamais restauré (gravée)
+          else
+            out << [SCHWA, true] # e muet final : on le restaure
+            self.i += 1
+          end
+        else
+          # plus de phones : les lettres restantes ne peuvent être que muettes
+          # (fin de vers) ; on les absorbe plutôt que de faire échouer tout
+          # le vers
+          self.i = n
+        end
+        return true
+      end
+
+      head = segs[cursor]
+      head_vowel = head[0].match?(VOWEL_PHONE)
+
+      # digrammes de consonnes
+      if CONSONANT_DIGRAPHS[two] &&
+         (head[0] == CONSONANT_DIGRAPHS[two] ||
+          (DIGRAPH_ALT[two] && head[0] == DIGRAPH_ALT[two]))
+        out << [head, false]
+        self.cursor += 1
+        # espeak-ng peut rendre ɲ par n+j (éteignent -> etɛnj...)
+        if two == "gn" && head[0] == "n" && segs[cursor] &&
+           segs[cursor][0] == "j"
+          out << [segs[cursor], false]
+          self.cursor += 1
+        end
+        self.i += 2
+        self.prev_cons = two
+        return true
+      end
+
+      ch.match?(VOWEL_LETTER) ? step_vowel(ch, head, head_vowel)
+                             : step_consonant(ch, head, head_vowel)
+    end
+
+    # Une lettre voyelle face à la tête de segment courante.
+    def step_vowel(ch, head, head_vowel)
+      # une lettre voyelle qui amorce une terminaison muette de plusieurs
+      # lettres devant un phone consonne n'est pas prononcée du tout
+      # (boeufs -> bø, le « ufs » est muet ; les terminaisons d'une seule
+      # lettre, comme le u de « tu », sont laissées à la branche glide)
+      if !head_vowel && !head.match?(GLIDE_PHONE) &&
+         word[i..].to_s.length >= 2 &&
+         Scansion.silent_tail_from?(word, i) &&
+         !word[i..].to_s.end_with?("x") && # le x de -aux/-eux peut faire liaison (beaux yeux)
+         !Scansion.ent_tail?(word, i) # -ent a sa propre règle
+        self.i = n
+        return true
+      end
+
+      # u muet après g/q suivi d'une voyelle (guerre, qui)
+      if ch == "u" && %w[g q].include?(prev_cons) &&
+         Scansion.vowel_letter?(word[i + 1])
+        self.i += 1
+        self.prev_cons = nil
+        return true
+      end
+
+      # e muet final devant un mot suivant à initiale vocalique : espeak-ng
+      # l'a élidé, donc on restaure un schwa SANS consommer la tête de segment
+      # (conditions exactes dans elidable_final_e?) ; l'élagage de scansion
+      # ci-dessous retire à nouveau ce schwa restauré (élision).
+      if Scansion.elidable_final_e?(word, i, head, out, next_vowel_initial, next_word)
+        out << [SCHWA, true]
+        self.i += 1
+        return true
+      end
+
+      # terminaison -ent (chantent, mélangent...) : le e muet avant -nt EST
+      # prononcé quand le mot suivant commence par une consonne ou un h
+      # aspiré, à l'intérieur d'un vers — MAIS seulement si le e suit une
+      # consonne. Après une lettre voyelle, il appartient au groupe voyelle
+      # et n'est jamais restauré (-uent, -ient : perpétuent -> pɛʁpety,
+      # criaient -> kʁiɛ). On restaure le schwa et on laisse l'élagage de
+      # scansion le supprimer devant une voyelle / un h muet / en fin de vers.
+      # Devant une voyelle, espeak-ng peut garder la liaison t
+      # (peuplent à -> pœplt-a). Une voyelle nasale en tête signifie que le e
+      # n'est pas muet (violent -> vjolɑ̃) : on laisse alors la branche voyelle.
+      if ch == "e" && Scansion.ent_tail?(word, i) &&
+         head[0] != SCHWA && !head.match?(/̃/)
+        if next_vowel_initial && head[0] == "t"
+          out << [head, false] # liaison du t
+          self.cursor += 1
+          self.i = n
+        elsif i.positive? && word[i - 1].match?(VOWEL_LETTER)
+          self.i += 1 # -uent/-ient : le e fait partie du groupe voyelle précédent
+        else
+          out << [SCHWA, true]
+          self.i = n
+        end
+        return true
+      end
+
+      # e après un g/c adouci est muet (vengeance -> vɑ̃ʒɑ̃s, le « ge » ne
+      # vaut que ʒ ; pages -> paʒ) — quand il est suivi d'une voyelle, ou
+      # d'un s/x final après une voyelle (mais c'est garde son e : c initial)
+      if ch == "e" && i >= 1 && %w[c g].include?(word[i - 1]) &&
+         (Scansion.vowel_letter?(word[i + 1]) ||
+          (i >= 2 && word[i - 2].match?(VOWEL_LETTER) &&
+           Scansion.e_muet_tail?(word, i)))
+        self.i += 1
+        self.prev_vowel_phone = true
+        return true
+      end
+
+      if head_vowel &&
+         !Scansion.final_e_before_vowel?(word, i, head, out, next_vowel_initial)
+        # (un e quasi final devant un mot SUIVANT à initiale vocalique ne
+        # consomme jamais de segment voyelle : si la tête est une voyelle
+        # autre que le schwa, elle appartient au mot suivant — la branche
+        # elidable_final_e? ci-dessus restaure sans consommer (ou la branche
+        # ch == "e" ci-dessous le fait, quand la tête est une consonne).
+        # Devant un mot à initiale consonantique, une tête voyelle est celle
+        # de ce mot (bouquet de -> bu-kɛ) et doit être consommée.)
+        # digramme de voyelles en une syllabe (ou, ai, ui -> yi...) :
+        # consommer toute la suite et absorber la deuxième lettre — sauf si
+        # la suite chevauche une frontière de mot (ou entendre -> suite
+        # « uɑ̃ » : ne garder que 'u')
+        # un digramme ne se déclenche que si la lettre n'est pas déjà la
+        # deuxième lettre d'un digramme précédent (alouettes : ou+e -> le e
+        # compte encore)
+        digraph = DIGRAPH_ONE_PHONE[ch + word[i + 1].to_s]
+        run_vowels = head.each_char.count { |c| c.match?(VOWEL_PHONE) }
+        # supprimé quand la lettre courante est déjà la 2e lettre d'un
+        # digramme avec la précédente (alouettes : ou+e -> le e compte
+        # encore ; mais yeux : y est le glide j, donc eu EST un digramme)
+        # — SAUF si la suite contient 2 voyelles (aiguille -> ɛ-g-yi-j :
+        # le « ui » EST ici un digramme à 2 voyelles, contrairement à alouettes)
+        digraph = nil if i.positive? &&
+                        DIGRAPH_ONE_PHONE.key?(word[i - 1].to_s + ch) &&
+                        run_vowels <= 1
+        # la lettre courante est la 2e d'un digramme ET la suite contient
+        # 2 voyelles : le digramme est la paire PRÉCÉDENTE (aiguille ->
+        # ɛ-g-yi-j, le « ui » = 2 lettres u+i rendues par la suite « yi »)
+        if digraph.nil? && i.positive? && run_vowels > 1 &&
+           DIGRAPH_ONE_PHONE.key?(word[i - 1].to_s + ch)
+          digraph = DIGRAPH_ONE_PHONE[word[i - 1].to_s + ch]
+        end
+        # un digramme dont la suite est une paire glide+voyelle (muette -> yɛ,
+        # tuer -> ye) est prononcé comme la suite ENTIÈRE, pas coupée en deux
+        glide_run = run_vowels == 2 && head[0].match?(/[ɥyjw]/)
+        # un digramme à 2 voyelles (oe -> øo : Noël) dont la suite contient
+        # exactement 2 voyelles devant un mot suivant à initiale vocalique
+        # est ambigu : la suite peut chevaucher la frontière de mot
+        # (boeufs au -> ø+o). Dans ce cas, ne prendre qu'UNE voyelle et
+        # laisser le reste au mot suivant.
+        boundary_run = next_vowel_initial && digraph.to_i > 1 &&
+                       run_vowels == digraph && !glide_run
+        if digraph && !boundary_run && (run_vowels <= digraph || glide_run)
+          out << [head, false]
+          self.cursor += 1
+          eat = 2
+          # la 2e lettre du digramme peut encore être prononcée comme un
+          # glide dans son propre segment (ay -> ɛ+j : rayonner -> ʁɛ-jɔn)
+          # — seulement en milieu de mot, donc un digramme final (fou, tout)
+          # ne vole jamais le glide initial du mot suivant
+          if i + 2 < n && word[i + 1] == "y" && word[i + 2] != "l" &&
+             segs[cursor] && segs[cursor][0].match?(GLIDE_PHONE)
+            out << [segs[cursor], false]
+            self.cursor += 1
+          end
+        else
+          # consommer la part du digramme dans la suite (ou UNE voyelle quand
+          # il n'y a pas de digramme) : une suite peut chevaucher une frontière
+          # de mot (violent héros -> segment « ɑ̃e » = ɑ̃ + é de héros ;
+          #  nuit est -> segment « yiɛ » = yi de nuit + ɛ de est)
+          take = digraph ? [run_vowels, digraph].min : 1
+          take = 1 if boundary_run
+          units = head.scan(/#{VOWEL_PHONE.source}\p{Mn}*/)
+          consumed = units.first(take).join
+          rest = head[consumed.length..].to_s
+          # espeak-ng fait parfois écho à la 2e lettre du digramme
+          # (pays -> p-ɛ-i, paysage -> p-ɛ-i-zaʒ) : on avale cet écho quand
+          # le mot se termine juste après le digramme, ou en milieu de mot
+          # avant une consonne (mais ou entendre garde la voyelle du mot
+          # suivant : mot suivant à initiale vocalique)
+          if digraph && rest.length == 1 && rest.match?(VOWEL_PHONE) &&
+             (word[(i + 2)..].to_s.match?(/\A(?:s|x)?\z/) ||
+              (!Scansion.vowel_letter?(word[i + 2]) && word[i + 2])) &&
+             !next_vowel_initial
+            rest = ""
+          end
+          if rest.empty?
+            out << [head, false]
+            self.cursor += 1
+          else
+            out << [consumed, false]
+            segs[cursor] = rest
+            self.run_split = true
+          end
+          eat = 1
+          eat += 1 if digraph
+        end
+        # absorber un n/m fermé, éventuellement à travers un digramme de
+        # voyelles (maintenant : a+i+n -> ɛ̃) — mais pas le e muet de -ent
+        absorbed_nasal = false
+        j = i + eat
+        nxt = segs[cursor].to_s[0]
+        if word[j].to_s.match?(/[nm]/) &&
+           !Scansion.vowel_letter?(word[j + 1]) &&
+           !(nxt == word[j] && %w[n m].include?(nxt)) # hymne : le phone m est encore en attente
+          eat = j - i + 1
+          absorbed_nasal = true
+        end
+        self.i += eat
+        # quand une suite chevauchant une frontière a été coupée
+        # (boeufs au -> ø+o), les lettres restantes après le digramme peuvent
+        # former une terminaison muette (boeufs -> bø, le « ufs » est muet)
+        self.i = n if boundary_run && Scansion.silent_tail_from?(word, i)
+        # liaison de ce n/m devant une voyelle (un art -> œ̃naʁt)
+        # — seulement quand le nasal est la dernière lettre du mot, pas une
+        # lettre interne (montmartre ne doit pas faire liaison avec son propre m)
+        if absorbed_nasal && next_vowel_initial && j == n - 1 &&
+           segs[cursor] && segs[cursor][0].match?(/[nm]/)
+          out << [segs[cursor], false]
+          self.cursor += 1
+        end
+        self.prev_cons = nil
+        self.prev_vowel_phone = true
+        return true
+      elsif head.match?(GLIDE_PHONE) &&
+            (%w[i u o y].include?(ch) ||
+             (ch == "a" && i.positive? && word[i - 1].match?(VOWEL_LETTER)) ||
+             # e de eu/ei rendu comme un glide (joyeuse -> ʒwa-jøz)
+             (ch == "e" && DIGRAPH_ONE_PHONE.key?("e" + word[i + 1].to_s)))
+        # glide devant une voyelle (vieux, huit, oi...)
+        # DIÉRÈSE : un « i » devant une voyelle pleine qu'espeak-ng a rendu
+        # comme un glide compte pour DEUX syllabes en vers (lion -> li-jɔ̃,
+        # violent -> vi-jɔ-lɑ̃, dieu -> di-jø) — sauf « hier » [jɛʁ]
+        if dierese && ch == "i" && word != "hier" &&
+           word[i + 1].to_s.match?(/[aàâäeéèêoôöœ]/) &&
+           segs[cursor + 1] && segs[cursor + 1][0].match?(VOWEL_PHONE)
+          out << ["i", true] # voyelle restaurée : diérèse
+        end
+        out << [head, false]
+        self.cursor += 1
+        self.i += 1
+        # -il/-ill fait partie du glide (œil, soleil, jaillisse...) ;
+        # idem pour une voyelle avalée quand aucun phone voyelle ne suit
+        # (feuilles)
+        self.i += 1 while word[i] == "l" ||
+                       (Scansion.vowel_letter?(word[i]) && word[i] != "e" &&
+                        !(segs[cursor] && segs[cursor][0].match?(VOWEL_PHONE)))
+        # un segment voyelle juste après le glide, en milieu de mot, est le
+        # noyau de la lettre courante (a -> j+a : effroyable, voyage)
+        # — mais jamais une voyelle NASALE : elle appartient à un n/m suivant
+        # (voyant -> vwa-jɑ̃-t, pas vwa-ja-nt)
+        if i < n && segs[cursor] && segs[cursor][0].match?(VOWEL_PHONE) &&
+           !segs[cursor].match?(/̃/) &&
+           word[i] != "l" && !word[i].match?(VOWEL_LETTER)
+          out << [segs[cursor], false]
+          self.cursor += 1
+        end
+        self.prev_cons = nil
+        self.prev_vowel_phone = false
+        return true
+      elsif ch == "e"
+        if i.positive? && word[i - 1].match?(VOWEL_LETTER) &&
+           Scansion.e_muet_tail?(word, i)
+          # le e FINAL après une lettre voyelle appartient au groupe voyelle
+          # et n'est jamais compté (gravée -> gʁav, suivie -> syi-vi) ; un e
+          # interne avant une consonne est compté (alouettes -> a-lou-e-tte)
+          self.i += 1
+          self.prev_vowel_phone = true
+          return true
+        end
+        if i >= 2 && word[i - 1] == "r" &&
+           !word[i - 2].match?(VOWEL_LETTER) &&
+           Scansion.e_muet_tail?(word, i) &&
+           !CR_E_PRONOUNCED.include?(word)
+          # e muet après un cluster -Cr- est MUET même devant une consonne :
+          # sombre -> sɔ̃bʁ, nombre -> nɔ̃bʁ, mettre -> mɛtʁ, fièvre -> fjɛvʁ
+          # (mais tables -> tablə : le -l- est conservé).
+          # SAUF entre/ventre (CR_E_PRONOUNCED) : leur e final est prononcé
+          # devant une consonne -> ɑ̃-tʁə, vɑ̃-tʁə, donc on laisse passer à
+          # la restauration normale ci-dessous.
+          self.i += 1
+          self.prev_vowel_phone = true
+          return true
+        end
+        # e muet : c'est ici la restauration
+        out << [SCHWA, true]
+        self.i += 1
+        self.prev_vowel_phone = true
+        return true
+      elsif i.positive? && (word[i - 1].match?(VOWEL_LETTER) || word[i - 1] == "h")
+        # deuxième lettre d'un digramme de voyelles (ai, au, ou, ui, eu...) :
+        # un phone pour deux lettres, absorbée en silence ; aussi la voyelle
+        # d'un mot à h muet après élision (l'homme -> lɔm)
+        self.i += 1
+        self.prev_cons = nil
+        self.prev_vowel_phone = true
+        return true
+      elsif i.zero?
+        # voyelle initiale muette (alors -> lɔʁ)
+        self.i += 1
+        self.prev_cons = nil
+        self.prev_vowel_phone = false
+        return true
+      else
+        return false
+      end
+    end
+
+    # Une lettre consonne face à la tête de segment courante.
+    def step_consonant(ch, head, head_vowel)
+      self.prev_vowel_phone = false
+      exp = Scansion.expected_consonant(ch, word[i + 1].to_s)
+      # s intervocalique sonorisé en z (gueuse, désormais... ; aussi devant
+      # un h muet : déshonneur -> de-zɔ-nœʁ)
+      exp = "z" if ch == "s" && i.positive? &&
+                   word[i - 1].match?(VOWEL_LETTER) &&
+                   (Scansion.vowel_letter?(word[i + 1]) || word[i + 1] == "h")
+      # s initial sonorisé en z devant une consonne voisée quand espeak-ng
+      # l'a fait (sveltesse -> zvɛltɛs)
+      exp = "z" if ch == "s" && i.zero? && head[0] == "z"
+      # le mot c' devant une voyelle -> s (c'est, c'était...)
+      exp = "s" if ch == "c" && word == "c" && next_vowel_initial
+      # c muet dans sc- devant une voyelle douce (scellé -> sɛle, scintille)
+      if ch == "c" && i.positive? && word[i - 1] == "s" &&
+         SOFT_NEXT.include?(word[i + 1].to_s)
+        self.i += 1
+        return true
+      end
+      # -tion/-tieux -> sjon (dilatation, captieux), mais question -> kɛstjɔ̃
+      # et -tié/-tier gardent leur t (pitié -> pitje, sentier -> sɑ̃tje) :
+      # ne se déclenche que si espeak-ng a réellement supprimé le t pour un s
+      exp = "s" if ch == "t" && word[i + 1] == "i" &&
+                   Scansion.vowel_letter?(word[i + 2]) &&
+                   word[i - 1] != "s" && head[0] == "s"
+      # second(e) se prononce avec un g dur (seconde -> səgɔ̃d)
+      exp = "g" if ch == "c" && word.start_with?("second")
+
+      if exp.nil? && ch != "x" # h muet (x traité plus bas)
+        if ch == "h" && head[0] == "h"
+          # h qu'espeak-ng a réellement prononcé (hier -> hiəʁ)
+          out << [head, false]
+          self.cursor += 1
+        end
+        self.i += 1
+        self.prev_cons = "h"
+        return true
+      end
+
+      if Scansion.silent_tail_from?(word, i) && next_word &&
+         Scansion.expected_consonant(next_word[0].to_s, next_word[1].to_s) == head[0] &&
+         !(segs[cursor + 1] && segs[cursor + 1][0] == head[0])
+        # terminaison muette : le segment unique est le phone initial du mot
+        # suivant (noms célestes -> nɔ̃selɛst, est son -> ɛsɔ̃, nœud de ->
+        # nødə, vieux sperme -> vjøspɛʁm). Mais quand espeak-ng a dupliqué le
+        # phone (cher raison -> ʁʁɛz), chaque mot prend le sien.
+        self.i = n
+        return true
+      end
+
+      # g muet après n devant une consonne (longtemps -> lɔ̃tɑ̃)
+      if ch == "g" && i.positive? && word[i - 1] == "n" &&
+         !%w[ɲ n g ʒ].include?(head[0])
+        self.i += 1
+        return true
+      end
+
+      # p muet après m (compte -> kɔ̃t)
+      if ch == "p" && i.positive? && word[i - 1] == "m" && head[0] != "p"
+        self.i += 1
+        return true
+      end
+
+      # p muet devant t (sept -> sɛt)
+      if ch == "p" && word[i + 1] == "t" && head[0] == "t"
+        self.i += 1
+        return true
+      end
+
+      # t muet devant m (montmartre -> mɔ̃-maʁ-tʁ)
+      if ch == "t" && word[i + 1] == "m" && head[0] != "t"
+        self.i += 1
+        return true
+      end
+
+      # r muet devant l quand espeak l'a supprimé (waterloo -> wɔ-tə-lu)
+      if ch == "r" && word[i + 1] == "l" && head[0] == "l"
+        self.i += 1
+        return true
+      end
+
+      # l muet devant un s final que espeak A bien sonorisé
+      # (fils -> fis, mais ils -> il)
+      if ch == "l" && word[i + 1] == "s" && i + 2 == n && head[0] == "s"
+        out << [head, false]
+        self.cursor += 1
+        self.i = n
+        self.prev_cons = "s"
+        return true
+      end
+
+      if ch == "x" && (head[0] == "k" || %w[s z g].include?(head[0]))
+        if head[0] == "k" # x -> ks
+          out << [head, false]
+          self.cursor += 1
+          if segs[cursor] && segs[cursor][0] == "s"
+            out << [segs[cursor], false]
+            self.cursor += 1
+          end
+        else # six, dix, existe -> gz...
+          out << [head, false]
+          self.cursor += 1
+          if head[0] == "g" && segs[cursor] && segs[cursor][0] == "z"
+            out << [segs[cursor], false]
+            self.cursor += 1
+          end
+        end
+        self.i += 1
+        return true
+      end
+
+      # -ll- après une voyelle se rend par j (aiguille -> ɛgij)
+      if ch == "l" && i.positive? && word[i - 1].match?(VOWEL_LETTER) &&
+         head[0] == "j"
+        out << [head, false]
+        self.cursor += 1
+        self.i += 1 while word[i] == "l"
+        self.prev_cons = "l"
+        return true
+      end
+
+      # t initial fondu dans la liaison du mot précédent
+      # (et toi -> etwa : le t est celui de et)
+      if i.zero? && ch == "t" && head[0] != "t" &&
+         (head_vowel || head.match?(GLIDE_PHONE))
+        self.i += 1
+        return true
+      end
+
+      if head[0] == exp || (ch == "w" && head[0] == "v") || # wagon -> vagɔ̃
+         (i == n - 1 && FINAL_DEVOICE[ch] == head[0]) # dévoisement final (Austerlitz -> ...lits)
+        out << [head, false]
+        self.cursor += 1
+        self.i += 1
+        self.prev_cons = ch
+      elsif next_vowel_initial && word[i..].to_s.match?(/[sdzgb]\z/) &&
+            head[0] == LIAISON_FINAL[word[i..][-1].to_s]
+        # liaison d'une consonne finale devant une voyelle (les amis -> lɛzami,
+        # fronts étoilés -> fʁɔ̃zetwal, quand il -> kɑ̃til, grand ami...)
+        out << [head, false]
+        self.cursor += 1
+        self.i = n
+        self.prev_cons = ch
+      elsif next_vowel_initial && word[i..].to_s.match?(/\A(?:n?sts?|x)\z/) &&
+            head[0] == "t"
+        # liaison d'un -st / -x final devant une voyelle (est autre -> ɛtotʁ)
+        out << [head, false]
+        self.cursor += 1
+        self.i = n
+        self.prev_cons = ch
+      elsif i == n - 1 && ch == "r" && next_vowel_initial && head[0] != "ʁ"
+        # liaison r supprimée par espeak-ng (qu'amer aucun -> ka-meʁ-o)
+        out << ["ʁ", true]
+        self.i += 1
+      elsif prev_fragment && run_split && word[i..].to_s.size >= 2 &&
+            head[0].match?(VOWEL_PHONE) &&
+            Scansion.silent_tail_from?(word, i) &&
+            segs[cursor + 1] &&
+            !segs[cursor + 1][0].match?(VOWEL_PHONE) &&
+            Scansion.expected_consonant(word[i..][-1], nil) == segs[cursor + 1][0]
+        # le reste de la suite voyelle appartient au mot précédent
+        # (fragment d'apostrophe : c' est -> se|ɛ) : on l'émet ici pour que
+        # le curseur avance au-delà de la suite et que la terminaison muette
+        # puisse correspondre
+        out << [head, false]
+        self.cursor += 1
+        self.prev_vowel_phone = true
+      elsif %w[n m].include?(ch) && head.match?(/̃/) &&
+            head[0].match?(/[ɑɛɔœ]/) &&
+            word[(i + 1)..].to_s.match?(SILENT_TAILS) # NB : depuis i+1, pas i (soyons, diligently...)
+
+        # n/m fermé par une terminaison muette, rendu comme une voyelle nasale
+        # (soyons -> swa-jɔ̃, le s final est muet). Avancer seulement après la
+        # lettre nasale : un -t final devant un mot à initiale vocalique est une
+        # liaison et doit encore être consommé (voyant à -> vwa-jɑ̃-ta)
+        out << [head, false]
+        self.cursor += 1
+        self.i += 1
+      elsif Scansion.silent_tail_from?(word, i)
+        # terminaison muette quel que soit le segment suivant (et, tables,
+        # dont, fronts, coups...) : les lettres restantes ne sont pas prononcées
+        self.i = n
+      elsif i.positive? && word[i - 1] == ch
+        # consonne redoublée prononcée une seule fois (belle, bonne, mettra...)
+        self.i += 1
+        self.prev_cons = ch
+      else
+        return false
+      end
+      true
+    end
+  end
+
+  class << self
+    # -- petits prédicats sur les lettres (partagés avec Aligner) ------
+
+    def vowel_letter?(ch) = ch.to_s.match?(VOWEL_LETTER)
+    def silent_tail_from?(word, i) = word[i..].to_s.match?(SILENT_TAILS)
+    def e_muet_tail?(word, i) = word[(i + 1)..].to_s.match?(E_MUET_TAIL)
+    def ent_tail?(word, i) = word[(i + 1)..].to_s.match?(ENT_TAIL)
+
+    # Forme courte : word[i] est un e muet quasi final devant un mot suivant
+    # à initiale vocalique, la tête n'est pas un schwa prononcé, et le mot a
+    # déjà une voyelle à lui. Sert à empêcher un tel e de consommer le segment
+    # voyelle de tête (la voyelle appartient au mot suivant).
+    def final_e_before_vowel?(word, i, head, out, next_vowel_initial)
+      word[i] == "e" && next_vowel_initial && head[0] != SCHWA &&
+        e_muet_tail?(word, i) &&
+        out.any? { |ph, _| ph[0].match?(VOWEL_PHONE) }
+    end
+
+    # Forme longue (ajoute la garde du « e oral ») : le e muet est vraiment
+    # élidé par espeak-ng parce que le mot suivant est à initiale vocalique,
+    # donc on restaure un schwa ici (l'élagage de scansion le retire ensuite).
+    # PAS une élision quand la tête est un e/ɛ ORAL que le mot suivant ne peut
+    # pas produire : c'est la voyelle propre de ce mot (remet à -> ʁəmɛta) ;
+    # un ɛ̃ nasal appartient au mot suivant (encore informe -> ...kɔʁɛ̃f...).
+    # PAS non plus une élision pour les mots en -Cr- à e muet (sombre,
+    # mettre) : leur e est muet de toute façon, même devant un h aspiré
+    # (sombre héros -> sɔ̃-bʁe-ʁo, pas sɔ̃-bʁə-...) ; CR_E_PRONOUNCED
+    # (entre, ventre) est exempté.
+    def elidable_final_e?(word, i, head, out, next_vowel_initial, next_word)
+      return false unless final_e_before_vowel?(word, i, head, out, next_vowel_initial)
+      # un e FINAL en -Cr- (sombre, mettre — terminaison vide/x, PAS avant un
+      # s muet) est muet même devant un h aspiré (sombre héros ->
+      # sɔ̃-bʁe-ʁo), donc ne jamais le restaurer comme élision ; la branche
+      # -Cr- de step_vowel s'en charge. Les mots en -es (propres airs ->
+      # pʁɔ-pʁə-zɛʁ) gardent leur e via la règle 1.5. CR_E_PRONOUNCED
+      # (entre, ventre) exempté.
+      return false if cr_mute_final_e?(word, i)
+      return false if %w[e ɛ].include?(head[0]) && !head.match?(/̃/) &&
+                      next_word.to_s.match?(NEXT_VOWELISH)
+      true
+    end
+
+    # word[i] est un e strictement final (terminaison vide ou x) après un
+    # cluster -Cr- dont le e est muet (sombre -> sɔ̃bʁ, mettre -> mɛtʁ) —
+    # SAUF CR_E_PRONOUNCED (entre -> ɑ̃-tʁə, ventre -> vɑ̃-tʁə).
+    def cr_mute_final_e?(word, i)
+      i >= 2 && word[i - 1] == "r" && !word[i - 2].match?(VOWEL_LETTER) &&
+        word[(i + 1)..].to_s.match?(/\A(?:x)?\z/) && !CR_E_PRONOUNCED.include?(word)
+    end
+
+    # -- phonétisation -------------------------------------------------
+
+    # Normalise la ligne d'entrée pour words_of ET espeak, afin que lettres et
+    # phones restent cohérents : entités HTML (&nbsp; etc.) et chiffres
+    # (espeak lit « 31 » comme « trente et un », words_of les ignore).
+    # Idempotent : scan_line normalise une fois et passe la ligne nettoyée en
+    # aval ; espeak normalise à nouveau seulement pour rester sûr comme point
+    # d'entrée autonome.
+    def normalize_input(line)
+      line.gsub(/&[a-zA-Z#0-9]+;/, " ").gsub(/\d+/, " ")
+    end
+
+    # Phonétise, en essayant dans l'ordre : le backend FFI en processus
+    # (phonemizer_ffi.rb, appelle libespeak-ng directement — pas de
+    # fork/exec par mot, sortie identique octet par octet au gem, voir
+    # spec/scansion_spec), puis l'API du gem phonemizer (son nom de require),
+    # puis le CLI `phonemize` qu'il fournit, puis espeak-ng directement.
+    # Chaque stratégie renvoie nil en cas d'échec (LoadError compris), sauf le
+    # dernier recours qui laisse l'erreur d'espeak-ng se propager.
+    def espeak(line)
+      line = normalize_input(line)
+      raw = phonemizer_ffi(line)
+      raw = phonemizer_gem(line) if raw.nil?
+      raw = cli_phonemize_safe(line) if raw.nil?
+      raw = espeak_ng(line) if raw.nil?
+      clean_ipa(raw.to_s)
+    end
+
+    # Le backend FFI (phonemizer_ffi.rb dans ce répertoire) : même API
+    # Phonemizer.phonemize, mais en processus. Mémoïsé comme indisponible
+    # après le premier échec (gem ffi ou libespeak-ng manquants) pour ne pas
+    # retenter toute la chaîne de repli à chaque mot.
+    def phonemizer_ffi(line)
+      return nil if @ffi_unavailable
+      require_relative "phonemizer_ffi"
+      Phonemizer.phonemize(line, language: "fr")
+    rescue StandardError, LoadError
+      @ffi_unavailable = true
+      nil
+    end
+
+    # L'API du gem phonemizer.
+    def phonemizer_gem(line)
+      require "phonemizer"
+      begin
+        Phonemizer.phonemize(line, language: "fr")
+      rescue ArgumentError, NoMethodError
+        Phonemizer.phonemize(line, "fr")
+      end
+    rescue StandardError, LoadError
+      nil
+    end
+
+    def cli_phonemize_safe(line)
+      cli_phonemize(line)
+    rescue StandardError
+      nil
+    end
+
+    # espeak-ng directement (dernier recours).
+    def espeak_ng(line)
+      Open3.capture3("espeak-ng", "-q", "--ipa", "-v", "fr",
+                     stdin_data: line)[0]
+    end
+
+    # L'exécutable `phonemize` fourni par le gem phonemizer.
+    # Les flags exacts du CLI peuvent varier, donc on essaie les formes
+    # plausibles à tour de rôle.
+    def cli_phonemize(line)
+      [["--lang", "fr"], ["-l", "fr"], []].each do |flags|
+        out, _err, status = Open3.capture3("phonemize", *flags, stdin_data: line)
+        return out if status.success? && !out.strip.empty?
+      end
+      raise "la commande `phonemize` n'a pas fonctionné"
+    end
+
+    # Nettoie le flux IPA brut : supprime les marqueurs de changement de langue
+    # d'espeak-ng « (en) »/« (fr) » EN ENTIER — ne retirer que les parenthèses
+    # laisserait des segments parasites « en »/« fr » qui cassent l'alignement
+    # (qu'hier -> (en)kwhˈiə(fr)). Puis supprime espaces, accents de stress,
+    # marques de liaison ET ponctuation : espeak-ng garde « , » (et parfois
+    # « . ») dans le flux IPA, alors que words_of() la supprime, donc un
+    # segment « , » parasite casserait l'alignement. Supprime aussi les
+    # caractères de largeur nulle/BOM, normalise U+0261 en g ASCII, et
+    # « dé-anglicise » l'API anglaise d'espeak (ɹ→ʁ, θ→t, ð→d, ɪ→i, ʌ→a,
+    # æ→a, ɒ→ɔ : rythme, macbeth, punch).
+    def clean_ipa(raw)
+      raw.to_s.gsub(/\([a-z]{2,3}\)/i, "")
+               .gsub(/[\uFEFF\u200B-\u200D\u00AD]/, "")
+               .gsub(/[\s\"()_ˈˌ‿ːˑ|[[:punct:]]]/, "")
+               .tr("ɡɹθðɪʌæɒ", "gʁtdiaaɔ")
+    end
+
+    # Ce cluster de consonnes est-il une attaque de syllabe française valide ?
+    # consonne seule ; obstruente+liquide(+glide) ; obstruente+glide ;
+    # liquide+glide ; nasale+glide ; s+obstruente seulement dans les clusters
+    # de 3+ (respiration -> ʁɛs-pi..., mais abstinente -> ab-sti...)
+    def valid_onset?(chars, big = false)
+      return false if chars.empty?
+      return true if chars.size == 1
+      ob = "ptkbdgvfʃzʒ"
+      li = "lʁ"
+      gl = "jɥw"
+      na = "mn"
+      chars.match?(/\A[#{ob}][#{li}][#{gl}]?\z/) ||
+        chars.match?(/\A[#{ob}][#{gl}]\z/) ||
+        chars.match?(/\A[#{li}][#{gl}]\z/) ||
+        chars.match?(/\A[#{na}][#{gl}]\z/) ||
+        chars.match?(/\As[#{gl}]\z/) || # -sion -> sjɔ̃
+        (big && chars.match?(/\As[#{ob}][#{li}]?[#{gl}]?\z/))
+    end
+
+    # Insère un séparateur « - » à chaque frontière de syllabe dans une liste
+    # de segments phonétiques. barriers = [index, mot_précédent, pause_précédente]
+    # pour chaque début de mot. Règles :
+    #  - un cluster de consonnes chevauchant une frontière de mot est coupé
+    #    À la première frontière (la consonne finale du mot précédent devient
+    #    coda : mer en -> mɛʁ-ɑ̃, par moi -> paʁ-mwa, l'envol est -> vɔl-ɛ...);
+    #  - exception : une lettre de liaison devant un mot à initiale vocalique
+    #    reste l'attaque (les amis -> lɛ-za-mi), sauf si une pause la bloque
+    #    (inutiles, enfant -> til-ɑ̃), et les articles élidés l'/j' fusionnent
+    #    (l'abstinente -> lab-sti...);
+    #  - sinon, le tiret va devant le plus long cluster d'attaque VALIDE
+    #    (per-clus -> pɛʁ-kly, re-tourne -> ʁə-tuʁn).
+    # Une coda finale ne reçoit pas de séparateur ; un hiatus (pas de
+    # consonne) est coupé.
+    def mark_syllables(phones, barriers = [])
+      cuts = {}
+      prev_vowel = nil
+      phones.each_with_index do |ph, k|
+        next unless ph[0].match?(VOWEL_PHONE)
+        if prev_vowel
+          cut = nil
+          inside = barriers.select { |b, _| b > prev_vowel && b < k }
+          if inside.any?
+            cut = inside.first[0]
+          elsif (info = barriers.find { |b, _| b == k })
+            prev_word, prev_paused = info[1].to_s, info[2]
+            unless %w[l j].include?(prev_word) ||
+                   (!prev_paused && LIAISON_LETTERS.include?(prev_word[-1].to_s))
+              cut = k # coda du mot précédent, coupure à la frontière
+            end
+          end
+          if cut.nil?
+            cluster = phones[(prev_vowel + 1)...k].map { |p| p[0] }.join
+            onset = cluster.size.downto(1).find do |len|
+              valid_onset?(cluster[-len..], cluster.size >= 3)
+            end || 0
+            cut = k - onset
+          end
+          cuts[cut] = true
+        end
+        prev_vowel = k
+      end
+      out = +""
+      phones.each_with_index do |ph, k|
+        out << "-" if cuts[k] && !out.empty?
+        out << ph
+      end
+      out
+    end
+
+    # Découpe l'IPA brute en segments suite-de-voyelles / consonne.
+    def segments(phones)
+      segs = []
+      vowel = false
+      phones.each_char do |ch|
+        if ch.match?(/\p{Mn}/u)
+          segs.last << ch unless segs.empty?
+        elsif ch.match?(VOWEL_PHONE)
+          if vowel && segs.any?
+            segs.last << ch
+          else
+            segs << ch.dup
+          end
+          vowel = true
+        else
+          segs << ch.dup
+          vowel = false
+        end
+      end
+      segs
+    end
+
+    # -- alignement lettres/phones --------------------------------------
+
+    def expected_consonant(ch, nxt)
+      case ch
+      when "c" then SOFT_NEXT.include?(nxt) ? "s" : "k"
+      when "g" then SOFT_NEXT.include?(nxt) ? "ʒ" : "g"
+      when "ç" then "s"
+      when "h" then nil
+      else CONSONANT_LETTERS[ch]
+      end
+    end
+
+    # Aligne un mot orthographique sur segs à partir de cursor.
+    # next_vowel_initial : si le mot suivant commence par une voyelle (ou un
+    # h muet), ce qui indique qu'espeak-ng a élidé un schwa final.
+    # Renvoie [pairs, new_cursor] avec des paires [phone, restauré ?],
+    # ou nil quand le mot ne peut pas être aligné sûrement.
+    def align_word(word, segs, cursor, next_vowel_initial: false, next_word: nil,
+                   prev_fragment: false, dierese: false)
+      a = Aligner.new(word: word, segs: segs, out: [], i: 0, cursor: cursor,
+                      n: word.size, prev_cons: nil, prev_vowel_phone: false,
+                      run_split: false, next_vowel_initial: next_vowel_initial,
+                      next_word: next_word, prev_fragment: prev_fragment,
+                      dierese: dierese)
+      a.run ? [a.out, a.cursor] : nil
+    end
+
+    # -- scansion ------------------------------------------------------
+
+    # Initial voyelle phonétique : commence par une lettre voyelle, ou par h
+    # suivi d'une voyelle (le h est toujours muet en français, muet ou aspiré,
+    # donc le mot commence quand même par un SON voyelle : hasard -> /azaʁ/).
+    # Sert au découpage des suites / aux frontières (au hasard -> o-a-zaʁ).
+    def vowel_initial?(word)
+      first = word[0].to_s
+      return true if first.match?(VOWEL_LETTER)
+      first == "h" && word[1].to_s.match?(VOWEL_LETTER)
+    end
+
+    # h aspiré (petite liste, familles par préfixe) : bloque élision/liaison.
+    def h_aspiré?(word)
+      return false unless word[0].to_s == "h" && word[1].to_s.match?(VOWEL_LETTER)
+      H_ASPIRE.any? { |h| word == h || word.start_with?(h) }
+    end
+
+    # L'élision/la liaison a lieu devant une voyelle ou un h MUET — jamais
+    # devant un h aspiré (« le hasard » n'élide pas, « l'homme » élide).
+    def elides_before?(word) = vowel_initial?(word) && !h_aspiré?(word)
+
+    def words_of(line)
+      line.downcase.gsub(/&[a-zA-Z#0-9]+;/, " ").gsub(/['’-]/, " ")
+          .scan(/[a-zà-ÿœ]+/u)
+    end
+
+    # Pour chaque mot de la ligne, indique s'il est directement suivi d'une
+    # pause graphique (, ; : ! ? … —). Le e muet d'un tel mot n'est pas
+    # compté (rêche, -> ʁɛʃ), comme en fin de vers.
+    def pause_flags(line, words)
+      toks = line.downcase.gsub(/&[a-zA-Z#0-9]+;/, " ")
+                 .scan(/([a-zà-ÿœ]+)([^a-zà-ÿœ\s]*)/u)
+      flags = toks.map { |_w, tail| tail.match?(/[.,;:!?…—]/) }
+      flags.fill(false, words.size...flags.size) if flags.size < words.size
+      flags.first(words.size)
+    end
+
+    # Mètres de vers attendus (utilisés par dierese: :auto)
+    METER = [6, 8, 10, 12].freeze
+
+    # Décompte des syllabes : chaque phone voyelle compte, SAUF un glide
+    # rendu « y » (ɥ) directement suivi d'une voyelle — fuyait -> f-yi-jɛ fait
+    # 2 syllabes, pas 3 (le y est le glide de « ui », pas un noyau)
+    def count_syllables(phones)
+      count = 0
+      phones.each_with_index do |ph, k|
+        next unless ph[0].match?(VOWEL_PHONE)
+        if (ph[0] == "y" || ph[0] == "ɥ") && phones[k + 1] &&
+           phones[k + 1][0].match?(VOWEL_PHONE)
+          next
+        end
+        count += 1
+      end
+      count
+    end
+
+    # Détection de contexte de poésie classique : true quand les lignes
+    # voisines (fenêtre autour de idx) tombent majoritairement dans la bande
+    # alexandrine 10-13 (11/13 sont eux-mêmes des candidats diérèse/surcompte,
+    # donc ils appartiennent à la bande). La diérèse ne peut être inférée que
+    # dans un contexte aussi régulier — JAMAIS en poésie contemporaine
+    # (samples/), où elle ne peut pas être déduite d'un nombre de syllabes
+    # cible. counts : décomptes de syllabes par ligne (nil pour les lignes
+    # vides ou non alignées).
+    def classical_context?(counts, idx, window: 5, threshold: 0.7)
+      lo = [idx - window, 0].max
+      hi = [idx + window, counts.size - 1].min
+      neigh = counts[lo..hi].compact
+      neigh.delete_at(idx - lo) if idx >= lo && idx <= hi
+      return false if neigh.empty?
+      neigh.count { |c| (10..13).cover?(c) }.to_f / neigh.size >= threshold
+    end
+
+    # Point d'entrée public. dierese: :auto re-scanne avec des diérèses quand
+    # le compte brut ne tombe pas sur un mètre de vers (11 -> 12, etc.).
+    # cache : Hash optionnel partagé entre appels (utilisé par process_lines)
+    # pour que chaque paire (ligne, options) ne soit scannée — et espeak-ng
+    # relancé — qu'une fois.
+    def process_line(line, keep_line_end_e:, dierese: false, cache: nil)
+      r = scan_line(line, keep_line_end_e: keep_line_end_e, dierese: false, cache: cache)
+      if dierese == true
+        r = scan_line(line, keep_line_end_e: keep_line_end_e, dierese: true, cache: cache)
+      elsif dierese == :auto && r.aligned && !METER.include?(r.syllables)
+        r2 = scan_line(line, keep_line_end_e: keep_line_end_e, dierese: true, cache: cache)
+        r = r2 if r2.aligned && METER.include?(r2.syllables)
+      end
+      r
+    end
+
+    # Point d'entrée par lot (deux passes). Avec dierese: :auto, la diérèse
+    # n'est appliquée que là où le contexte alentour est classique
+    # (classical_context?) — jamais en poésie contemporaine.
+    def process_lines(lines, keep_line_end_e:, dierese: :auto)
+      cache = {}
+      counts = lines.map do |l|
+        next nil if l.strip.empty?
+        r = scan_line(l, keep_line_end_e: keep_line_end_e, dierese: false, cache: cache)
+        r.aligned ? r.syllables : nil
+      end
+      lines.each_with_index.map do |l, i|
+        d = case dierese
+            when :auto then (classical_context?(counts, i) ? :auto : false)
+            else dierese
+            end
+        process_line(l, keep_line_end_e: keep_line_end_e, dierese: d, cache: cache)
+      end
+    end
+
+    # Enveloppe mémoïsante autour de compute_scan_line : avec un cache partagé
+    # (voir process_lines), chaque triplet (ligne, keep_line_end_e, dierese)
+    # n'est calculé — et espeak-ng relancé — qu'une fois.
+    def scan_line(line, keep_line_end_e:, dierese: false, cache: nil)
+      if cache
+        key = [line, keep_line_end_e, dierese]
+        return cache[key] if cache.key?(key)
+        return cache[key] = compute_scan_line(line, keep_line_end_e: keep_line_end_e,
+                                                       dierese: dierese)
+      end
+      compute_scan_line(line, keep_line_end_e: keep_line_end_e, dierese: dierese)
+    end
+
+    def compute_scan_line(line, keep_line_end_e:, dierese: false)
+      # normalise une fois pour que words_of et espeak voient les mêmes lettres
+      clean = normalize_input(line)
+      words = words_of(clean)
+      if words.empty?
+        return Result.new(text: line, raw: "", phones: "",
+                          syllables: 0, aligned: true, dierese: 0)
+      end
+
+      raw = espeak(clean)
+      segs = segments(raw)
+
+      words_out = []
+      cursor = 0
+      aligned = true
+
+      words.each_with_index do |w, k|
+        res = align_word(w, segs, cursor,
+                         next_vowel_initial: vowel_initial?(words[k + 1].to_s),
+                         next_word: words[k + 1],
+                         prev_fragment: k.positive? &&
+                           %w[c j l d n s t m qu].include?(words[k - 1]),
+                         dierese: dierese)
+        if res.nil?
+          aligned = false
+          break
+        end
+        words_out << { word: w, pairs: res[0] }
+        cursor = res[1]
+      end
+      aligned &&= (cursor == segs.size)
+
+      unless aligned
+        # repli sûr : sortie brute d'espeak, sans restauration
+        syll = count_syllables(segs)
+        return Result.new(text: line, raw: raw, phones: mark_syllables(segs),
+                          syllables: syll, aligned: false, dierese: 0)
+      end
+
+      # élagage de scansion des schwas finaux restaurés
+      paused = pause_flags(clean, words)
+      words_out.each_with_index do |w, k|
+        pairs = w[:pairs]
+        next unless pairs.last && pairs.last[0] == SCHWA
+
+        next_word = (words_out[k + 1] || {})[:word]
+        if next_word.nil?                # fin de vers : e muet non compté
+          pairs.pop unless keep_line_end_e
+        elsif elides_before?(next_word)  # élision devant une voyelle / un h muet (pas un h aspiré)
+          pairs.pop
+        elsif paused[k]                  # devant une pause (, ; : ! ? … —)
+          pairs.pop
+        end
+      end
+
+      flat = []
+      barriers = []
+      words_out.each_with_index do |w, k|
+        barriers << [flat.size, words[k - 1], paused[k - 1]]
+        w[:pairs].each { |ph, _| flat << ph }
+      end
+      phones = mark_syllables(flat, barriers)
+      syllables = count_syllables(flat)
+
+      dier = words_out.sum do |w|
+        w[:pairs].count { |ph, restored| restored && ph == "i" }
+      end
+      Result.new(text: line, raw: raw, phones: phones,
+                 syllables: syllables, aligned: aligned, dierese: dier)
+    end
+
+    # -- CLI -------------------------------------------------------------
+
+    # Point d'entrée, invoqué seulement quand le fichier est exécuté comme
+    # script ($PROGRAM_NAME == __FILE__), afin que le require de ce fichier
+    # reste sans effet de bord : pas d'OptionParser qui consommerait l'ARGV de
+    # l'hôte, pas de mutation d'encodage global.
+    def main(argv = ARGV)
+      options = { keep_line_end_e: false, syllables_only: false, dierese: :auto }
+      OptionParser.new do |opts|
+        opts.banner = "Utilisation : #{File.basename($PROGRAM_NAME)} [options] [FILE|-]"
+        opts.on("--keep-line-end-e", "Compter l'e muet en fin de vers") do
+          options[:keep_line_end_e] = true
+        end
+        opts.on("--no-dierese", "Désactiver la diérèse contextuelle (corpus contemporain)") do
+          options[:dierese] = false
+        end
+        opts.on("-s", "--syllables", "Afficher seulement le décompte des syllabes") do
+          options[:syllables_only] = true
+        end
+        opts.on("-h", "--help", "Afficher cette aide") do
+          puts opts
+          exit
+        end
+      end.parse!(argv)
+
+      Encoding.default_external = Encoding::UTF_8
+
+      fallbacks = 0
+
+      # Accepte des chemins de fichiers ou du texte de vers en argument :
+      #   scansion poeme.txt
+      #   scansion "Au coin du feu, dans la langueur des rêveries!"
+      inline = []
+      ARGV.replace(argv.flat_map do |arg|
+        if arg == "-" || File.exist?(arg)
+          arg
+        else
+          inline.concat(arg.split(/[\r\n]+/))
+          nil
+        end
+      end.compact)
+
+      lines =
+        if inline.any? && ARGV.empty?
+          inline.each
+        elsif inline.any?
+          # mélange de texte en ligne et de chemins de fichiers : traiter
+          # d'abord les lignes passées en ligne
+          Enumerator.new do |y|
+            inline.each { |l| y << l }
+            ARGF.each_line { |l| y << l }
+          end
+        else
+          ARGF.each_line
+        end
+
+      lines = lines.to_a.map(&:chomp)
+      process_lines(lines, keep_line_end_e: options[:keep_line_end_e],
+                           dierese: options[:dierese]).each do |res|
+        next if res.text.strip.empty?
+
+        if options[:syllables_only]
+          puts format("%3d  %s", res.syllables, res.text.to_s.strip)
+        else
+          puts res.text.to_s.rstrip
+          puts format("  %s %s   (%d syll.)", res.aligned ? "⇒" : "~", res.phones, res.syllables)
+          puts "    (espeak seul : #{res.raw})" unless res.aligned
+          puts ""
+        end
+
+        fallbacks += 1 unless res.aligned
+      end
+
+      warn "scansion : #{fallbacks} vers non alignés (sortie espeak brute)" if fallbacks.positive?
+    end
+  end
+end
+
+Scansion.main if $PROGRAM_NAME == __FILE__

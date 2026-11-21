@@ -1,0 +1,345 @@
+RÈGLES APPLIQUÉES DANS scansion.rb
+=========================================
+(état courant du script — chaque règle est illustrée par un exemple
+concret tiré des tests ou des échantillons samples/)
+
+Le script phonétise chaque vers avec espeak-ng (API --ipa), puis aligne
+les lettres orthographiques sur les segments phonétiques. Toute restauration
+de « e muet » est faite par l'alignement ; si l'alignement échoue pour un
+mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
+
+
+1. RÈGLES DE SCANSION (comptage des syllabes)
+---------------------------------------------
+
+1.1  E muet interne : prononcé (compté) devant une consonne.
+     « redemande encore » -> ʁdəmɑ̃dɑ̃kɔʁ (le e de re-de-man-de restauré).
+
+1.2  E muet final devant un mot à initiale consonantique : prononcé.
+     « table ronde » -> tabləʁɔ̃d (3 syllabes).
+
+1.3  E muet final devant un mot à initiale vocalique (voyelle ou h muet) :
+     élidé (non compté). « table orange » -> tablɔʁɑ̃ʒ.
+
+1.4  E muet en fin de vers : non compté.
+     « la table » -> la-tabl (2 syllabes) ;
+     compté si --keep-line-end-e est passé (la-ta-blə, 3 syllabes,
+     utile pour les rimes féminines).
+
+1.4b E muet devant une pause graphique (, ; : ! ? … —) : non compté,
+     comme en fin de vers.
+     « perclus des coups de rêche, l’abstinente » ->
+     pɛʁ-kly-de-ku-də-ʁɛʃ-lab-sti-nɑ̃t (9 syllabes, pas 10) ;
+     « qui se retourne, s’éloigne » -> ki-sə-ʁə-tuʁn-se-lwaɲ (6 syllabes).
+
+1.5  E muet final devant un s muet : restauré.
+     « tables blanches » -> tabləblɑ̃ʃ.
+
+1.5b E muet FINAL après une voyelle (groupes -ée, -ie, -ue) : jamais compté.
+     « gravée des noms célestes » -> gʁa-ve-de-nɔ̃-se-lɛst (6 syllabes,
+     « gra-vée » = 2) ; « suivie d’ombres » -> syi-vi-dɔ̃... (8 syllabes,
+     « sui-vie » = 2, le ui formant UNE syllabe et le e final étant muet).
+     Mais un e muet INTERNE après une voyelle, devant une consonne, est
+     compté (règle 1.1) : « alouettes » -> a-lwɛ-ə-tə (4 syllabes,
+     a-lou-e-tte), « les alouettes lestes qui mélangent » = 10 syllabes.
+
+1.5c Digrammes vocaliques en UNE syllabe : ai, au, ou, eu, ei, ay, ey,
+     ui, ue, œ (DIGRAPH_ONE_PHONE). La 2e lettre est absorbée seulement
+     si la 1re lettre ne suit pas elle-même une voyelle : ainsi dans
+     « alouettes » le e reste compté (règle 1.5b), mais « m'accueille »
+     -> ma-kœj (7 syllabes pour le vers, le ue de -ueille formant un œ).
+     « ui » compte pour 2 voyelles espeak (yi) : « qui » -> ki.
+
+1.4c DIÉRÈSE — RÉSERVÉE AU CONTEXTE CLASSIQUE, automatique et contextuelle
+     par défaut dans le CLI (dierese: :auto ; --no-dierese pour désactiver
+     entièrement, p. ex. corpus contemporain). Un « i » suivi d’une
+     voyelle pleine que espeak a rendu par un glide compte DOUBLE en vers
+     classique (lion -> li-jɔ̃, dieu -> di-jø, viens -> vi-ens ; mais
+     « hier » [jɛʁ] reste 1). Le contexte classique est détecté par les
+     VERS VOISINS (classical_context?) : majorité de vers dans la BANDE
+     alexandrine 10-13 (les 11/13 y comptent comme candidats diérèse)
+     ou alternance stricte 10/12, dans une fenêtre de ±5 vers (seuil
+     70 %). En poésie
+     contemporaine (samples/), la diérèse ne peut PAS être déduite d’un
+     nombre cible : les rapports de samples/ tournent avec --no-dierese.
+     Même en contexte classique, le re-scan avec diérèse n’est retenu que
+     s’il mène le vers à 6/8/10/12. L’e muet final n’est jamais compté
+     (règle 1.4).
+
+1.5c bis  E après g/c doux (vengeance -> vɑ̃ʒɑ̃s, pages -> paʒ) : muet
+     quand suivi d’une voyelle, ou d’un s/x final après une voyelle
+     (mais « c’est » garde son e : c initial).
+
+1.5d E muet après un groupe -Cr- (sombre, nombre, cédre, mettre, fièvre,
+     spectre -> sɔ̃bʁ, nɔ̃bʁ, mɛtʁ, fjɛvʁ, spɛktʁ) : JAMAIS compté, même
+     devant une consonne (contrairement à -le : « tables blanches » ->
+     ta-blə-blɑ̃ʃ). Ne s’applique qu’en fin de mot (ou devant s/x muet) ;
+     un e interne avant une consonne reste compté (règle 1.1).
+     EXCEPTIONS (CR_E_PRONOUNCED) : « entre » et « ventre » gardent leur e
+     final devant une consonne -> ɑ̃-tʁə, vɑ̃-tʁə (« l’amour est mort entre
+     tes bras » -> la-muʁ-ɛ-mɔʁ-ɑ̃-tʁə-te-bʁa, 8 syllabes). Devant une
+     voyelle ou en fin de vers, l’élision habituelle s’applique.
+
+1.6  Terminaison -ent / -ente / -entes :
+     - prononcée (e compté) si le mot suivant commence par une consonne
+       ou un h aspiré, à l'intérieur d'un vers, ET si le e de -ent suit
+       une consonne ;
+       « ils chantent bien » -> i-lʃɑ̃-tə-bjɛ̃ (4 syllabes),
+       « ils chantent héros » -> i-lʃɑ̃-tə-e-ʁo (h aspiré, 5 syllabes) ;
+     - JAMAIS prononcée quand le e suit une voyelle (-uent, -ient, -ient
+       des imparfaits) : le e appartient au groupe vocalique précédent ;
+       « qui perpétuent le souvenir » -> ki-pɛ-ʁpe-ty-lə-su-və-niʁ
+       (8 syllabes, pas 9), « ils crient bien » -> i-lkʁi-bjɛ̃ ;
+     - non prononcée en fin de vers (« ils chantent » -> i-lʃɑ̃t) ;
+     - non prononcée devant une voyelle ou un h muet, avec liaison en t
+       si espeak la prononce : « ils chantent ici » -> il-ʃɑ̃tt-i-si,
+       « ils peuplent à peine » -> il-pøplt-a-pɛn ;
+     - le e nasal de -ent n'est PAS restauré quand il est déjà prononcé
+       (« violent » -> œ̃-vjo-lɑ̃-e-ʁo, pas de schwa ajouté).
+
+1.7  Liaisons de consonnes finales devant une voyelle :
+     s->z (« les amis » -> lɛzami), d->t (« quand il » -> kɑ̃til),
+     g->k, b->p, z->s, -st/-x -> t (« est autre » -> ɛtotʁ),
+     n/m après voyelle nasale (« un art » -> œ̃naʁt),
+     et r final restauré quand espeak-ng l'a supprimé
+     (« qu'amer aucun » -> ka-meʁ-o-kœ̃).
+     La liaison a lieu aussi pour les pluriels en -ts/-ns/-nts
+     (« fronts étoilés » -> fʁɔ̃zetwal...).
+     Une pause graphique (, ; : ! ? … —) BLOQUE la liaison.
+
+1.8  H muet vs h aspiré : elision devant h muet, pas devant h aspiré
+     (petite liste : haie, haine, hache, honte, héros, hérisson, harpe,
+     halle, hurler, heaume, hocher, hibou).
+
+
+2. RÈGLES D'ALIGNEMENT LETTRE -> PHONE (anti-fallback)
+------------------------------------------------------
+
+2.1  Nettoyage de la sortie espeak-ng avant segmentation :
+     suppression des marqueurs de changement de langue "(en)"/"(fr)"
+     ENTIERS (sinon il reste des segments parasites "en"/"fr" :
+     qu’hier -> (en)kwhˈiə(fr)), des caractères invisibles
+     (BOM U+FEFF, espaces fines), des espaces, des marques de stress
+     ˈ ˌ, de la liaison ‿, des longueurs ː ˑ, de TOUTE ponctuation
+     ([[:punct:]] — espeak émet « , » dans le flux IPA),
+     normalisation ɡ (U+0261) -> g, et des entités HTML (&nbsp; etc.)
+     avant phonétisation. Dé-anglicisation de l’IPA anglais renvoyé par
+     espeak-ng pour certains mots (rythme, macbeth, punch) :
+     ɹ->ʁ, θ->t, ð->d, ɪ->i, ʌ->a, æ->a, ɒ->ɔ.
+     Les respellings d’entrée ponctuels (qu’hier, d’aujourd’hui, punch,
+     Te Deum, Fould, Barthélemy...) ont été RETIRÉS à la demande : aucune
+     règle codée en dur pour un seul mot — normalize_input ne fait plus
+     que nettoyer entités HTML et chiffres.
+
+2.1b Dévoisement final rendu par espeak-ng : z->s, d->t, b->p, g->k,
+     v->f en fin de mot (Austerlitz -> ...lits).
+
+2.1c Un h réellement prononcé par espeak-ng est consommé
+     (hier -> hiəʁ dans certains contextes).
+
+2.1d Nasal n/m fermé par une queue silencieuse et rendu par une voyelle
+     nasale : « soyons » -> swa-jɔ̃ (le s final est muet).
+
+2.1e Digramme suivi d’un glide dans son propre segment, en milieu de
+     mot seulement : « ay » -> ɛ+j (rayonner -> ʁɛ-jɔn) ; jamais en fin
+     de mot (fou, tout) ni avant -l (soleil -> sɔ-lɛj via la règle -ll-).
+
+2.1f Un digramme vocalique consomme sa part du run (jusqu’à 2 voyelles
+     pour ui) : « nuit est » -> run "yiɛ" = yi (nuit) + ɛ (est).
+     Écho du 2e lettre du digramme (pays -> p-ɛ-i) : avalé quand le mot
+     se termine juste après (sauf si le mot suivant commence par une
+     voyelle : « ou entendre » garde le ɑ̃).
+
+2.1g Divers : s intervocalique -> z aussi devant h muet (déshonneur) ;
+     p muet devant t (sept -> sɛt) ; t muet devant m (montmartre) ;
+     r muet devant l (waterloo) ; l muet devant s final voisé (fils -> fis,
+     mais ils -> il) ; f final dans SILENT_TAILS (serf) ; chiffres retirés
+     de l’entrée (31 -> « trente et un »). normalize_input (appliqué à
+     words_of ET à espeak pour garder lettres et phones cohérents) ne
+     normalise que les entités HTML et les chiffres.
+     Un glide suivi d’une voyelle en milieu de mot avale la voyelle
+     (a -> j+a : effroyable -> efʁwa-jabl, voyage -> vwa-jaʒ).
+
+2.1h Comptage des syllabes : un « y »/ɥ (glide) directement suivi d’une
+     voyelle ne compte pas comme syllabe (fuyait -> f-yi-jɛ = 2, pas 3).
+     Un e final-ish dont le mot a déjà sa voyelle ne consomme jamais un
+     segment voyelle suivant (sinon il vole la voyelle du mot suivant).
+
+2.2  Segmentation en « runs » voyelle/consononne ; un run voyelle est
+     découpé par mot : « violent héros » -> segment ɑ̃e = ɑ̃ + é de héros.
+
+2.3  Digrammes de consonnes : ch->ʃ, ph->f, th->t, qu->k, ss->s, ck->k,
+     gn->ɲ (ou n, parfois n+j : « éteignent » -> etɛnj).
+
+2.4  C/G doux devant e i y é è ê (SOFT_NEXT) : c->s, g->ʒ.
+     « c'est » -> le mot c seul vaut s devant voyelle ;
+     « sc- » devant voyelle douce : c muet (« scellé » -> sɛle) ;
+     « second(e) » -> g dur (səɡɔ̃d) ;
+     « -tion » -> s (dilatasjɔ̃) sauf après s (« question » -> kɛstjɔ̃).
+
+2.5  Digrammes voyelles prononcés en UNE voyelle (2e lettre absorbée :
+     ai au ou eu ei ay ey) — « ou entendre » ne mange pas le ɑ̃ suivant ;
+     sinon la 2e lettre d'un digramme voyelle est absorbée quand il ne
+     reste plus de voyelle à consommer (ai, au, ou, ui, eu :
+     « chair », « faite », « au », « souvenir », « coups »...).
+
+2.6  Glides j ɥ w : i/u/o/y (et a après voyelle, « prévoyante ») devant
+     voyelle -> glide (« yeux » -> jø, « miroir » -> miʁwaʁ) ;
+     -il/-ill après le glide absorbé (« œil », « soleil », « jaillisse ») ;
+     -ll- après voyelle rendu par j (« aiguille » -> ɛɡij) ;
+     voyelle avalée après glide si aucune voyelle ne suit (« feuilles »).
+
+2.7  E muet restauré quand aucune voyelle phonétique ne correspond
+     (c'est le cœur du script) ; le pruning de scansion (règles 1.2-1.6)
+     décide ensuite de le garder ou de l'éliminer.
+
+2.8  Nasales : n/m absorbés après une voyelle fermée, y compris à travers
+     un digramme (« maintenant » -> mɛ̃tnɑ̃, « pain » -> pɛ̃).
+
+2.9  Consonnes silencieuses en queue, à n'importe quelle position quand
+     la tête ne correspond pas (SILENT_TAILS : ent, nt, nts, nte, ns, nc, ms, cs,
+     s, t, ts, d, x, z, p, ps, g, gt, st, ut, r, n, it, ds, rs, c, ôt, u,
+     au, aux, eau, eaux, eux, ux, ous...) : « fronts » -> fʁɔ̃,
+     « coups » -> ku, « pierre » -> pjɛʁ, « raconter » -> ʁakɔ̃te,
+     « flanc » -> flɑ̃, « doigt » -> dwa.
+     Quand les segments sont épuisés (fin de vers), toute queue restante
+     est absorbée silencieusement au lieu de faire échouer le vers.
+
+2.10 Lettres doublées prononcées une fois (« belle », « bonne », « pierre »).
+
+2.11 Silences lexicaux : h muet ; g après n devant consonne (« longtemps »
+     -> lɔ̃tɑ̃) ; p après m (« compte » -> kɔ̃t) ; u après g/q devant voyelle
+     (« guerre », « qui ») ; voyelle initiale muette (« alors » -> lɔʁ) ;
+     voyelle après h muet élidé (« au hasard » -> ozaʁ) ; t initial fondu
+     dans la liaison du mot précédent (« et toi » -> etwa).
+
+2.12 S intervocalique -> z (« gueuse » -> ɡøz, « désormais »).
+
+2.13 X : -> ks, ou s/z/g (« six », « dix »), ou ɡz (« existe » -> ɛɡzist),
+     ou muet en queue (« peux », « deux », « vieux sperme » -> vjøspɛʁm).
+
+2.14 W prononcé v par espeak (« wagon » -> vagɔ̃).
+
+2.15 Une queue silencieuse est traitée comme muette quand le segment
+     appartient en fait au mot suivant qui commence par le même phone
+     (« noms célestes » -> nɔ̃selɛst, « est son » -> ɛsɔ̃, « nœud de » ->
+     nødə...) — sauf si espeak a doublé le phone (« cher raison » ->
+     ʁʁɛz : chaque mot prend le sien).
+
+2.16 Digramme « ue » (et tout digramme en glide+voyelle : muette -> yɛ,
+     tuer -> ye) : quand le run contient une PAIRE glide+voyelle (2 voyelles
+     dont la 1re est un glide ɥ/j/w), le digramme absorbe TOUT le run,
+     pas une seule voyelle — sinon la voyelle restante reste bloquée et
+     fait échouer le mot (« brisée, muette de souffrance »).
+
+2.17 Suppression d’un digramme vocalique : un digramme ne se déclenche
+     PAS quand la lettre courante est déjà la 2e lettre d’un digramme avec
+     la lettre précédente (alouettes : o-u-e -> le e compte encore ;
+     mais yeux : y vaut j ici, donc « eu » EST un digramme -> ʒø).
+     Le critère est purement orthographique : la paire (lettre précédente
+     + lettre courante) appartient à DIGRAPH_ONE_PHONE.
+
+2.18 Fragment d’apostrophe + run vocalique spanning : après un fragment
+     d’elision d’une lettre (c’, j’, l’, d’, n’, s’, t’, m’, qu’), si le
+     mot courant a dû scinder un run vocalique (1re voyelle du run) et que
+     sa queue restante est une queue silencieuse de 2+ lettres dont la
+     dernière consonne correspond au segment suivant (c’ est -> se|ɛt),
+     la voyelle restante du run est émise pour ce mot (elle lui appartient)
+     afin que le curseur avance : « c’ est une danse perpétuelle » ->
+     se-ɛt-y-nə-dɑ̃-sə-pɛʁ-pe-tyɛl (9 syllabes).
+
+2.19 « oe » prononcé en 2 voyelles (Noël -> nɔ-ɛl, canoë -> ka-nɔ-e,
+     goélette -> ɡɔ-e-lɛt) : DIGRAPH_ONE_PHONE « oe » => 2. MAIS si le mot
+     suivant commence par une voyelle et que le run contient exactement
+     2 voyelles, le run peut FRANCHIR la frontière de mot (boeufs au ->
+     run « øo » = ø de boeufs + o de « au ») : on ne consomme alors qu’UNE
+     voyelle (take=1) et le reste du run est laissé au mot suivant.
+
+2.20 Lettre voyelle ouvrant une queue silencieuse de 2+ lettres devant un
+     phone consonne : la lettre est sautée avec toute la queue (boeufs ->
+     bø, « ufs » muet ; SILENT_TAILS inclut désormais ufs/oeufs). SAUF :
+     queues en -x (le x peut liaisonner : beaux yeux -> bo-zjø) et queues
+     -ent/-nt (règle 1.6 prioritaire). Les queues d’une seule lettre (le u
+     de « tu ») ne sont pas concernées.
+
+2.21 t -> s devant i+voyelle SEULEMENT si espeak-ng a vraiment supprimé
+     le t (tête == s) : captieux -> kap-sjø, dilatation -> di-la-sjɔ̃ ;
+     mais pitié -> pi-tje, sentier -> sɑ̃-tje, bastion -> bas-tjɔ̃ gardent
+     leur t (tête == t).
+
+2.22 E quasi-final (suivi seulement de s/t/ts/ps/x) devant une voyelle
+     non schwa : la tête voyelle n’est attribuée au mot SUIVANT que si
+     celui-ci commence par une voyelle (parle à -> paʁ-la). Devant un mot
+     à initiale consonne, une tête voyelle appartient au mot courant et
+     est consommée (bouquet de -> bu-kɛ-dé).
+
+2.23 Absorption d’un n/m fermé après une voyelle : seulement si le phone
+     nasal correspondant n’est PAS déjà en attente en tête de segment
+     (hymne -> i-m-n : le m est consommé normalement, pas absorbé via la
+     voyelle nasale).
+
+2.24 Branchement nasal + liaison : un n/m final rendu voyelle nasale
+     (voyant -> vwa-jɑ̃) ne saute PAS les lettres suivantes — un -t final
+     devant un mot à initiale voyelle reste une liaison prononcée
+     (voyant à -> vwa-jɑ̃-ta).
+
+2.25 Un glide (j ɥ w) ne mange jamais la voyelle NASALE qui le suit : elle
+     appartient au n/m suivant (voyant -> vwa-j-ɑ̃-t, pas vwa-ja-nt).
+
+2.26 Digramme vu depuis sa 2e lettre : si la lettre courante est la 2e
+     d’un digramme et que le run contient 2 voyelles, le digramme est la
+     paire précédente (aiguille -> ɛ-g-yi-j : « ui » = u+i rendu « yi »).
+
+2.27 S initial devant une consonne voiced prononcée z par espeak-ng :
+     s -> z (sveltesse -> zvɛltɛs).
+
+LIMITATION CONNUE : -u final (tu, nu, su) devant un mot à initiale
+     voyelle — le glide y n’est pas compté comme noyau (tu es -> compté
+     1 syll. au lieu de 2), car on ne peut pas distinguer /y/ noyau de
+     /j/ glide dans la chaîne de phones seule.
+
+
+3. COMPORTEMENT DE SECOURS
+--------------------------
+
+Si un mot ne peut pas être aligné, le vers entier est émis en sortie
+espeak brute avec le préfixe « ~ » et le nombre de syllabes d'espeak :
+le script préfère manquer des e muets plutôt qu'en inventer.
+
+
+4. FORMAT DE SORTIE
+-------------------
+
+Result#phones (et donc la ligne « ⇒ » du CLI) porte un tiret « - » entre
+les syllabes. Règles de découpage (mark_syllables) :
+  - entre deux voyelles, le tiret va devant le plus long groupe d'attaque
+    VALIDE : consonne seule ; obstruente+liquide(+glide) ; obstruent+glide ;
+    liquide+glide ; nasale+glide ; s+glide (s+voyelle : -sion -> sjɔ̃) ;
+    s+obstruent seulement dans un groupe de 3+ consonnes
+    (« respiration » -> ʁɛs-pi-ʁa-sjɔ̃) mais PAS sinon
+    (« abstinente » -> ab-sti-) ;
+  - une FRONTIÈRE DE MOT est un point de coupe : la consonne finale du
+    mot précédent devient coda (« mer en » -> mɛʁ-ɑ̃, « par moi » ->
+    paʁ-mwa, « l'envol est » -> vɔl-ɛ, « inutiles, enfant » -> til-ɑ̃) ;
+  - exceptions à la frontière de mot : la lettre de LIAISON (s x z d g b
+    n m) devant un mot à initiale vocalique reste attaque
+    (« les amis » -> lɛ-za-mi), sauf si une pause bloque la liaison ;
+    les articles élidés l'/j' fusionnent (« l'abstinente » -> lab-sti...) ;
+  - la coda finale ne reçoit pas de tiret ; un hiatus voyelle-voyelle
+    (aucune consonne entre les deux) est séparé (ə-e) :
+  « perclus »        -> pɛʁ-kly        (per-clus)
+  « se retourne, »   -> ʁə-tuʁn        (re-tourne)
+  « l’abstinente »   -> lab-sti-nɑ̃t    (l’ab-sti-nente)
+  « miroir »         -> mi-ʁwaʁ
+  « étrangère »      -> e-tʁɑ̃-ʒɛʁ
+Exemple : « étrangères à ton nom, miroir » ->
+e-tʁɑ̃-ʒɛ-ʁə-za-tɔ̃-nɔ̃-mi-ʁwaʁ (9 syllabes).
+La ligne « (espeak seul : ...) » de fallback et Result#raw restent sans
+tirets. Le mode -s/--syllables n’affiche que le nombre de syllabes.
+
+
+FICHIERS
+--------
+scansion.rb        le script
+scansion_spec.rb   tests RSpec (espeak simulé, déterministe)
+
