@@ -31,9 +31,18 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      « perclus des coups de rêche, l’abstinente » ->
      pɛʁ-kly-de-ku-də-ʁɛʃ-lab-sti-nɑ̃t (9 syllabes, pas 10) ;
      « qui se retourne, s’éloigne » -> ki-sə-ʁə-tuʁn-se-lwaɲ (6 syllabes).
+     EXCEPTION ALEXANDRINE (mode :auto, contexte classique) : si compter le e
+     devant la pause mène le vers exactement à 12 syllabes, le e est compté
+     (paramètre pause_e) — « Dites, sans l’accuser de chercher un esclave, »
+     -> di-tə-… (12). Jamais appliqué ailleurs : en vers irrégulier ou
+     contemporain (--no-dierese), la pause silencie bien le e muet.
 
 1.5  E muet final devant un s muet : restauré.
      « tables blanches » -> tabləblɑ̃ʃ.
+     Devant un mot à initiale vocalique, le e muet d’un PLURIEL en -es/-eux
+     est prononcé avec liaison du s (plural_mute_e?) : « nouvelles amours »
+     -> nu-vɛ-lə-za-muʁ (5), « des âmes hautaines » -> de-za-mə-o-tɛn ;
+     le singulier élide toujours (« la table amie » -> la-tabl-a-mi).
 
 1.5b E muet FINAL après une voyelle (groupes -ée, -ie, -ue) : jamais compté.
      « gravée des noms célestes » -> gʁa-ve-de-nɔ̃-se-lɛst (6 syllabes,
@@ -58,10 +67,15 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      « hier » [jɛʁ] reste 1). Même traitement pour un « u » suivi d’un
      « é/è », d’un « eu » ou d’un « a » final (± s/x), rendu glide
      (nuée -> nu-ée, exténuée -> ex-té-nu-ée, majestueux -> ma-jes-tu-eux,
-     ruas -> ru-as ; 2 syllabes), et pour un « ou »
-     suivi d’un « a » (couardise -> cou-ar-dise, joua -> jou-a) — mais PAS
+     ruas -> ru-as ; 2 syllabes), un « i » suivi d’un « u » (médium ->
+     mé-di-um), et pour un « ou »
+     suivi d’un « a »/« é »/« è » (couardise -> cou-ar-dise, joua -> jou-a,
+     dénoué -> dé-nu-é) — mais PAS
      pour un « ue »/« ua » interne (ruelle -> ʁɥɛl, nuage -> nyaʒ,
-     1 syllabe). Le contexte classique est détecté par les
+     1 syllabe). En re-scan CIBLÉ (dierese_words, voir ci-dessous), deux
+     extensions : « u+a » interne (suaves -> su-a-ves, muaient -> mu-a-ient,
+     mortuaires -> mor-tu-aires) et « ou+i » (épanoui -> é-pa-nou-i,
+     épanouit -> é-pa-nou-it). Le contexte classique est détecté par les
      VERS VOISINS (classical_context?) : majorité de vers dans la BANDE
      alexandrine 10-13 (les 11/13 y comptent comme candidats diérèse)
      OU la bande octosyllabe 6-9 (les 7 y comptent comme candidats),
@@ -70,12 +84,23 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      contemporaine (samples/), la diérèse ne peut PAS être déduite d’un
      nombre cible : les rapports de samples/ tournent avec --no-dierese.
      Même en contexte classique, le re-scan avec diérèse n’est retenu que
-     s’il mène le vers à 6/8/10/12. L’e muet final n’est jamais compté
-     (règle 1.4).
+     s’il mène le vers à 6/8/10/12. Si le re-scan global (diérèse sur tous
+     les mots candidats + e des -re comptés) ne tombe pas sur un mètre, un
+     re-scan CIBLÉ essaie chaque mot candidat individuellement
+     (fix_candidate_words : diérèse et/ou e de -re sur ce seul mot) et retient
+     la première variante qui atteint 6/8/10/12 — cela évite les sur-comptages
+     quand la diérèse globale « tire » sur de faux amis (vieux, dieu…).
+     L’e muet final n’est jamais compté (règle 1.4).
 
 1.5c bis  E après g/c doux (vengeance -> vɑ̃ʒɑ̃s, pages -> paʒ) : muet
      quand suivi d’une voyelle, ou d’un s/x final après une voyelle
      (mais « c’est » garde son e : c initial).
+     EN CONTEXTE CLASSIQUE, le e final des mots en -ce/-ge/-que/-gue
+     (pluriel -s/-x accepté) est COMPTÉ comme celui des -re (voir 1.5d) :
+     Pâques -> pâ-ques, algue -> al-gue, vagues -> va-gues,
+     jonque -> jon-que, Cantique -> can-ti-que, calices -> ca-li-ces,
+     rouges -> rou-ges, douce -> du-sə, grâce -> grâ-sə,
+     ombrage -> om-bra-gə (voir cluster_re_pronounced?).
 
 1.5d E muet après un groupe -Cr- (sombre, nombre, cédre, mettre, fièvre,
      spectre -> sɔ̃bʁ, nɔ̃bʁ, mɛtʁ, fjɛvʁ, spɛktʁ) : JAMAIS compté, même
@@ -83,12 +108,22 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      ta-blə-blɑ̃ʃ). Ne s’applique qu’en fin de mot (ou devant s/x muet) ;
      un e interne avant une consonne reste compté (règle 1.1).
      EN CONTEXTE CLASSIQUE (diérèse active, voir 1.4c), le e final de tout
-     mot en -Cre (consonne + r + e, pluriel en -s accepté) est COMPTÉ :
+     mot en -re (consonne ou voyelle + r + e, pluriel en -s accepté) est COMPTÉ :
      notre -> no-tʁə, vivre -> vi-vʁə, âpre -> â-pʁə, spectre -> spɛk-tʁə,
      meurtre -> mœʁ-tʁə, centre -> sɑ̃-tʁə, pauvre -> po-vʁə, ivre -> i-vʁə,
-     sombre -> sɔ̃-bʁə, décembre -> de-sɑ̃-bʁə… (voir cluster_re_pronounced?).
+     sombre -> sɔ̃-bʁə, décembre -> de-sɑ̃-bʁə, mais aussi -ère/-oire/-ire :
+     mère -> mè-re, chère -> chè-re, gloire -> gloi-re, terre -> ter-re,
+     encore -> ɑ̃-kɔʁə… (voir cluster_re_pronounced?).
      La règle 1.5d stricte n'est donc appliquée qu'en mode contemporain
-     (--no-dierese). Le re-scan classique n'est retenu que s'il mène le vers
+     (--no-dierese).
+1.5e -ent PRONONCÉ (3e personne du pluriel) : en re-scan ciblé mot à mot
+     (ent_words), t’arrivent -> ta-ʁi-vɑ̃, surgissent -> syʁ-ʒi-sɑ̃,
+     marquent -> maʁ-kɑ̃ (le t de liaison est abandonné). Jamais en passe
+     globale, et jamais devant une nasale déjà prononcée (moment -> mɔ-mɑ̃).
+1.6  Y-GLIDE : « y » suivi d’une voyelle est le glide /j/ (CONSONNE) :
+     vowel_initial? -> false (pas d’élision : peintre Yosen -> pein-tʁə),
+     mais liaison_initial? -> true (les yeux -> lez-jø, des yachts ->
+     de-zjat). Voir y_glide? / liaison_initial?. Le re-scan classique n'est retenu que s'il mène le vers
      à un mètre (6/8/10/12), donc les vers déjà justes ne sont pas touchés.
      EXCEPTIONS (CR_E_PRONOUNCED, pluriels en -s/-x acceptés via
      cr_e_pronounced?) : « astre », « battre », « croître », « entendre »,

@@ -669,6 +669,238 @@ it "pluriel en -s d'un mot en -vre : « pauvres » -> po-vʁə (6 syllabes)" do
 end
   end
 
+describe "diérèse ciblée et e des -re en mode :auto (fix_candidate_words)" do
+it "diérèse du « ou » devant « é » (dénoué -> dé-nu-é, 12 syllabes)" do
+  stub_espeak("Et voici dénoué le fil de mes pensées;" => "evwasidenweləfildəmepɑ̃se")
+  r = described_class.process_line("Et voici dénoué le fil de mes pensées;", dierese: true)
+  expect(r).to have_attributes(aligned: true, syllables: 12)
+  expect(r.phones).to eq("e-vwa-si-de-nu-e-lə-fil-də-me-pɑ̃-se")
+end
+it ":auto ciblé — e de « gloire » compté (gloi-re -> glwa-ʁə), 12 syllabes sans diérèse" do
+  stub_espeak("Macbeth règne ; il est plein de gloire. Macbeth, roi," => "məkbɛtʁɛɲilɛplɛ̃dəglwaʁməkbɛtʁwa")
+  r = described_class.process_line("Macbeth règne ; il est plein de gloire. Macbeth, roi,", dierese: :auto)
+  expect(r).to have_attributes(aligned: true, syllables: 12)
+  expect(r.phones).to eq("mək-bɛt-ʁɛɲ-il-ɛ-plɛ̃-də-glwa-ʁə-mək-bɛt-ʁwa")
+end
+it ":auto ciblé — e de « encore » compté (kɔ-ʁə), 12 syllabes" do
+  stub_espeak("Sous l’azur, un peu pâle encore, les buissons" => "sulazyʁœ̃pøpalɑ̃kɔʁlebyisɔ̃")
+  r = described_class.process_line("Sous l’azur, un peu pâle encore, les buissons", dierese: :auto)
+  expect(r).to have_attributes(aligned: true, syllables: 12)
+  expect(r.phones).to eq("su-la-zyʁ-œ̃-pø-pal-ɑ̃-kɔ-ʁə-le-byi-sɔ̃")
+end
+it ":auto ciblé — diérèse i+u de « médium » (me-di-jɔm), 12 syllabes" do
+  stub_espeak("La flûte au médium a des accents voilés" => "laflytomedjɔmadezaksɑ̃vwale")
+  r = described_class.process_line("La flûte au médium a des accents voilés", dierese: :auto)
+  expect(r).to have_attributes(aligned: true, syllables: 12)
+  expect(r.phones).to eq("la-flyt-o-me-di-jɔ-ma-de-zak-sɑ̃-vwa-le")
+end
+  end
+
+  describe "règles 0.1.5 : -ce/-ge/-que/-gue comptés, -ent de 3e pl., diérèses u+a / ou+i ciblées, y-glide" do
+    it ":auto — e de « Pâques » compté (pâ-ques), 12 syllabes" do
+      stub_espeak("La nature s’éveille, et c’est Pâques-fleuries!" => "lanatyʁsevɛjesɛpakfløʁi")
+      r = described_class.process_line("La nature s’éveille, et c’est Pâques-fleuries!", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("la-na-ty-ʁə-se-vɛj-e-sɛ-pa-kə-flø-ʁi")
+    end
+
+    it ":auto — e de « algue » compté (al-gue), 12 syllabes" do
+      stub_espeak("Ne sent point le baiser de l’algue qui le frôle." => "nəsɑ̃pwɛ̃ləbɛzedəlalgkiləfʁol")
+      r = described_class.process_line("Ne sent point le baiser de l’algue qui le frôle.", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("nə-sɑ̃-pwɛ̃-lə-bɛ-ze-də-lal-gə-ki-lə-fʁol")
+    end
+
+    it ":auto — e de « vagues » compté (va-gues), 12 syllabes" do
+      stub_espeak("Les vagues me crachaient leur écume au visage!..." => "levagməkʁaʃɛlœʁekymovizaʒ")
+      r = described_class.process_line("Les vagues me crachaient leur écume au visage!...", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("le-va-gə-mə-kʁa-ʃɛ-lœʁ-e-kym-o-vi-zaʒ")
+    end
+
+    it ":auto — e de « Cantique » compté (can-ti-que), 12 syllabes" do
+      stub_espeak("Rosaire des baisers : Cantique des cantiques!" => "ʁozɛʁdebɛzekɑ̃tikdekɑ̃tik")
+      r = described_class.process_line("Rosaire des baisers : Cantique des cantiques!", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("ʁo-zɛ-ʁə-de-bɛ-ze-kɑ̃-ti-kə-de-kɑ̃-tik")
+    end
+
+    it ":auto — e de « calices » compté (ca-li-ces), 12 syllabes" do
+      stub_espeak("Vois ces calices blancs, ces corolles vermeilles," => "vwasekalisblɑ̃sekoʁɔlvɛʁmɛj")
+      r = described_class.process_line("Vois ces calices blancs, ces corolles vermeilles,", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("vwa-se-ka-li-sə-blɑ̃-se-ko-ʁɔ-lə-vɛʁ-mɛj")
+    end
+
+    it ":auto — e de « rouges » compté (rou-ges), 12 syllabes" do
+      stub_espeak("Les gris aux rouges vifs, la corolle déclose" => "legʁioʁuʒviflakoʁɔldeklɔz")
+      r = described_class.process_line("Les gris aux rouges vifs, la corolle déclose", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("le-gʁi-o-ʁu-ʒə-vif-la-ko-ʁɔ-lə-de-klɔz")
+    end
+
+    it ":auto — e de « jonque » compté (jon-que), 12 syllabes" do
+      stub_espeak("Lance une jonque fine arrondissant ses voiles." => "lɑ̃synʒɔ̃kfinaʁɔ̃disɑ̃sevwal")
+      r = described_class.process_line("Lance une jonque fine arrondissant ses voiles.", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("lɑ̃s-y-nə-ʒɔ̃-kə-fin-a-ʁɔ̃-di-sɑ̃-se-vwal")
+    end
+
+    it ":auto — -ent prononcé de « t’arrivent » (3e pl.), 12 syllabes" do
+      stub_espeak("Nos cris et nos clameurs t’arrivent en murmures;" => "nokʁienoklamœʁtaʁivtɑ̃myʁmyʁ")
+      r = described_class.process_line("Nos cris et nos clameurs t’arrivent en murmures;", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("no-kʁi-e-no-kla-mœʁ-ta-ʁi-vɑ̃-ɑ̃-myʁ-myʁ")
+    end
+
+    it ":auto — -ent prononcé de « surgissent » (3e pl.), 12 syllabes" do
+      stub_espeak("Surgissent à foison. — Savamment, il oppose" => "syʁʒistafwazɔ̃savamɑ̃ilɔpɔz")
+      r = described_class.process_line("Surgissent à foison. — Savamment, il oppose", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("syʁ-ʒi-sɑ̃-a-fwa-zɔ̃-sa-va-mɑ̃-il-ɔ-pɔz")
+    end
+
+    it ":auto — diérèse ciblée u+a de « suaves » (su-a-ves), 12 syllabes" do
+      stub_espeak("Les suaves aveux dont la langueur enjôle" => "lesyavzavødɔ̃lalɑ̃gœʁɑ̃ʒol")
+      r = described_class.process_line("Les suaves aveux dont la langueur enjôle", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("le-su-a-və-za-vø-dɔ̃-la-lɑ̃-gœʁ-ɑ̃-ʒol")
+    end
+
+    it ":auto — diérèse ciblée u+a de « muaient » (mu-a-ient), 12 syllabes" do
+      stub_espeak("Les sèves se muaient lentement en dictâmes." => "lesɛvsəmyɛlɑ̃tmɑ̃ɑ̃diktam")
+      r = described_class.process_line("Les sèves se muaient lentement en dictâmes.", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("le-sɛ-və-sə-mu-ɛ-lɑ̃-tə-mɑ̃-ɑ̃-dik-tam")
+    end
+
+    it ":auto — diérèse ciblée ou+i de « épanoui » (é-pa-nou-i), 12 syllabes" do
+      stub_espeak("Avons épanoui la fleur, mûri le fruit," => "avɔ̃zepanwilaflœʁmyʁiləfʁyi")
+      r = described_class.process_line("Avons épanoui la fleur, mûri le fruit,", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("a-vɔ̃-ze-pa-nu-i-la-flœʁ-my-ʁi-lə-fʁyi")
+    end
+
+    it ":auto — diérèse ciblée ou+i de « épanouit » (é-pa-nou-it), 12 syllabes" do
+      stub_espeak("Elle s’épanouit dans ses béatitudes." => "ɛlsepanwidɑ̃sebeatityd")
+      r = described_class.process_line("Elle s’épanouit dans ses béatitudes.", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("ɛ-lə-se-pa-nu-i-dɑ̃-se-be-a-ti-tyd")
+    end
+
+    it "y-glide — pas d’élision devant « Yosen » (peintre -> pein-tʁə), 12 syllabes" do
+      stub_espeak("Le bon peintre Yosen a, dès l’aurore rose," => "ləbɔ̃pɛ̃tʁjozɛnadɛloʁɔʁʁɔz")
+      r = described_class.process_line("Le bon peintre Yosen a, dès l’aurore rose,", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("lə-bɔ̃-pɛ̃-tʁə-jo-zɛ-na-dɛ-lo-ʁɔ-ʁə-ʁɔz")
+    end
+
+    it "y-glide — liaison conservée devant « yeux » (les yeux -> lez-jø), vers aligné" do
+      stub_espeak("Comme dans tes yeux clairs, ô douce beauté blonde!" => "kɔmdɑ̃tezjøklɛʁodusboteblɔ̃d")
+      r = described_class.process_line("Comme dans tes yeux clairs, ô douce beauté blonde!", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("kɔ-mə-dɑ̃-tez-jø-klɛʁ-o-du-sə-bo-te-blɔ̃d")
+    end
+
+    it "y_glide? / liaison_initial? : y suivi d’une voyelle est un /j/" do
+      expect(described_class.y_glide?("yeux")).to be true
+      expect(described_class.y_glide?("Yosen")).to be true
+      expect(described_class.y_glide?("vas")).to be false
+      expect(described_class.vowel_initial?("yeux")).to be false   # bloque l’élision
+      expect(described_class.liaison_initial?("yeux")).to be true   # mais liaison z/s
+      expect(described_class.elides_before?("yeux")).to be false
+    end
+  end
+
+  describe "pluriel en -es/-eux : e muet prononcé avec liaison devant une voyelle (plural_mute_e?)" do
+    it "« nouvelles amours » -> nu-vɛ-lə-za-muʁ (5 syllabes)" do
+      stub_espeak("nouvelles amours" => "nuvɛlzamuʁ")
+      r = process("nouvelles amours")
+      expect(r).to have_attributes(aligned: true, syllables: 5)
+      expect(r.phones).to eq("nu-vɛ-lə-za-muʁ")
+    end
+
+    it "« des âmes hautaines » -> de-za-mə-o-tɛn (5 syllabes)" do
+      stub_espeak("des âmes hautaines" => "dezamotɛn")
+      r = process("des âmes hautaines")
+      expect(r).to have_attributes(aligned: true, syllables: 5)
+      expect(r.phones).to eq("de-za-mə-o-tɛn")
+    end
+
+    it "le singulier élide toujours : « la table amie » -> la-tabl-a-mi (4 syllabes)" do
+      stub_espeak("la table amie" => "latablami")
+      r = process("la table amie")
+      expect(r).to have_attributes(aligned: true, syllables: 4)
+      expect(r.phones).to eq("la-tabl-a-mi")
+    end
+
+    it "devant une consonne le pluriel garde son e (règle 1.5) : « tables blanches » -> 3 syllabes" do
+      stub_espeak("tables blanches" => "tablblɑ̃ʃ")
+      r = process("tables blanches")
+      expect(r).to have_attributes(aligned: true, syllables: 3)
+      expect(r.phones).to eq("ta-blə-blɑ̃ʃ")
+    end
+
+    it "plural_mute_e? : -es/-eux après une consonne (y compris qu/gu), pas le singulier" do
+      expect(described_class.plural_mute_e?("nouvelles")).to be true
+      expect(described_class.plural_mute_e?("âmes")).to be true
+      expect(described_class.plural_mute_e?("jusques")).to be true
+      expect(described_class.plural_mute_e?("fatigues")).to be true
+      expect(described_class.plural_mute_e?("table")).to be false
+      expect(described_class.plural_mute_e?("amie")).to be false
+    end
+  end
+
+  describe "e muet prononcé devant une pause en alexandrine (pause_e, :auto uniquement)" do
+    it ":auto — « Dites, sans l’accuser de chercher un esclave, » -> 12 syllabes (di-tə)" do
+      stub_espeak("Dites, sans l’accuser de chercher un esclave," => "ditsɑ̃lakyzedəʃɛʁʃeœ̃nɛsklav")
+      r = described_class.process_line("Dites, sans l’accuser de chercher un esclave,", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 12)
+      expect(r.phones).to eq("di-tə-sɑ̃-la-ky-ze-də-ʃɛʁ-ʃeʁ-œ̃-nɛ-sklav")
+    end
+
+    it "mode plain (--no-dierese) : la virgule silencie toujours le e muet (11 syllabes)" do
+      stub_espeak("Dites, sans l’accuser de chercher un esclave," => "ditsɑ̃lakyzedəʃɛʁʃeœ̃nɛsklav")
+      r = process("Dites, sans l’accuser de chercher un esclave,")
+      expect(r).to have_attributes(aligned: true, syllables: 11)
+      expect(r.phones).to eq("dit-sɑ̃-la-ky-ze" + "-də-ʃɛʁ-ʃeʁ-œ̃-nɛ-sklav")
+    end
+
+    it ":auto — un octosyllabe n’est PAS forcé à 12 (« Ô lâche ! Et peut-être demain, » -> 8)" do
+      stub_espeak("Ô lâche ! Et peut-être demain," => "olaʃepøɛtʁdəmɛ̃")
+      r = described_class.process_line("Ô lâche ! Et peut-être demain,", dierese: :auto)
+      expect(r).to have_attributes(aligned: true, syllables: 8)
+      expect(r.phones).to eq("o-laʃ-e-pø-ɛ-tʁə" + "-də-mɛ̃")
+    end
+  end
+
+  describe "Result#word_spans (spans mot -> syllabes pour les outils en aval)" do
+    it "découpe « la table ronde » en spans 0 / 1-2 / 3" do
+      stub_espeak("la table ronde" => "latablʁɔ̃d")
+      r = process("la table ronde")
+      expect(r.word_spans).to eq([
+        { word: "la", first: 0, last: 0 },
+        { word: "table", first: 1, last: 2 },
+        { word: "ronde", first: 3, last: 3 }
+      ])
+    end
+
+    it "un fragment sans noyau (« l' ») a un span vide (last < first)" do
+      stub_espeak("l’accuser de chercher" => "lakyzedəʃɛʁʃe")
+      r = process("l’accuser de chercher")
+      expect(r.word_spans.first).to eq({ word: "l", first: 0, last: -1 })
+      expect(r.word_spans[1][:word]).to eq("accuser")
+      expect(r.word_spans.last).to eq({ word: "chercher", first: 4, last: 5 })
+    end
+
+    it "vaut nil en repli (non aligné)" do
+      stub_espeak("zzzz qqqq" => "zɛdqɛk")
+      r = process("zzzz qqqq")
+      expect(r.aligned).to be false
+      expect(r.word_spans).to be_nil
+    end
+  end
+
   describe "bibliothèque sans effets de bord" do
     it "se require sans toucher à ARGV (Scansion.main n'est appelé que as script)" do
       # si le CLI tournait au require, l OptionParser lèverait InvalidOption

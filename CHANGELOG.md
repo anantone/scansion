@@ -1,5 +1,33 @@
 # Journal des modifications
 
+## 0.1.5 - 2026-11-22
+
+- `cluster_re_pronounced?` étendu aux finales -ce/-ge/-que/-gue (pluriel -s/-x accepté) : en contexte classique, leur e final est COMPTÉ — Pâques -> pâ-ques, algue -> al-gue, vagues -> va-gues, jonque -> jon-que, Cantique -> can-ti-que, calices -> ca-li-ces, rouges -> rou-ges, douce -> du-sə, grâce -> grâ-sə, ombrage -> om-bra-gə (la branche « curseur épuisé » restaure aussi le schwa quand espeak l’a avalé)
+- nouveau ciblage `ent_words` : en re-scan ciblé mot à mot, le -ent de 3e personne du pluriel est prononcé ɑ̃ (t'arrivent -> ta-ʁi-vɑ̃, surgissent -> syʁ-ʒi-sɑ̃, marquent -> maʁ-kɑ̃), sans liaison du t ; jamais en passe globale
+- diérèses ciblées supplémentaires (uniquement via `dierese_words`, jamais en diérèse globale — « nuage » reste 1 syllabe) : « u+a » interne (suaves -> su-a-ves, muaient -> mu-a-ient, mortuaires -> mor-tu-aires) et « ou+i » (épanoui -> é-pa-nou-i, épanouit -> é-pa-nou-it) ; `DIERESE_WORD` élargi (`ua`, `oui` n’importe où)
+- « y » suivi d’une voyelle = glide /j/ : nouveaux prédicats `y_glide?`/`liaison_initial?` — il BLOQUE l’élision du mot précédent (peintre Yosen -> pein-tʁə, 2 syllabes) mais la liaison d’une consonne finale a bien lieu (les yeux -> lez-jø)
+- réparation de deux regex `/s\z/` (double backslash, ne matche jamais) en `/s\z/`
+- Bilan sonnets_oupoco.txt : 12: 48398→51067, 11: 5838→3181, 8: 7018→7280, 7: 1197→934, 10: 3702→3764, 9: 494→420, 5: 162→150 ; chatiments.txt : 12: 4205→4432, 11: 527→304. Replis (~) : 2539 (3,7 %). Liste « 11 syllabes à e muet final » : 2251→1053 lignes (rapports/…_v2…v4)
+- règle 1.5 : devant un mot à initiale vocalique, le e muet d’un pluriel en -es/-eux est prononcé avec liaison du s (nouveau prédicat `plural_mute_e?` : « nouvelles amours » -> nu-vɛ-lə-za-muʁ, « des âmes hautaines » -> de-za-mə-o-tɛn) ; le singulier élide toujours (« la table amie » -> la-tabl-a-mi). Bilan racine_txt (17 plays) : 12: 21368→22644 (76,6 %→81,2 %), 11: 2530→1255 ; oupoco : 12: 51067→51270, 11: 3181→3022 ; chatiments : 12: 4432→4460, 11: 304→281
+- règle 1.4b (exception alexandrine) : en mode `:auto`, un e muet devant une pause graphique (, ; : ! ? … —) est compté quand cela mène le vers exactement à 12 syllabes (nouveau paramètre `pause_e` des passes de re-scan) — « Dites, sans l’accuser de chercher un esclave, » -> 12 (di-tə). Jamais en mode plain/`--no-dierese`, et un octosyllabe n’est pas forcé à 12. Bilan racine_txt : 12: 22644→23114 (82,8 %), 11: 1255→787 ; oupoco : 12: 51270→52626, 11: 3022→1676 ; chatiments : 12: 4460→4578, 11: 281→164
+- `Result#word_spans` : nouveaux spans mot -> indices de syllabes exposés par le gem (même règle de comptage que `count_syllables`), pour les outils en aval (accent_de_phrase les consomme directement, sans re-phonétiser les mots isolés)
+- 27 nouveaux exemples RSpec (130 au total, 0 échec) ; `docs/scansion_rules.txt` mis à jour (1.4c, 1.5c bis, 1.5d, y-glide)
+- `cluster_re_pronounced?` étendu aux finales -ce/-ge/-que/-gue (pluriel -s/-x accepté) : en contexte classique, leur e final est COMPTÉ — Pâques -> pâ-ques, algue -> al-gue, vagues -> va-gues, jonque -> jon-que, Cantique -> can-ti-que, calices -> ca-li-ces, rouges -> rou-ges, douce -> du-sə, grâce -> grâ-sə, ombrage -> om-bra-gə (la branche « curseur épuisé » restaure aussi le schwa quand espeak l’a avalé)
+- nouveau ciblage `ent_words` : en re-scan ciblé mot à mot, le -ent de 3e personne du pluriel est prononcé ɑ̃ (t'arrivent -> ta-ʁi-vɑ̃, surgissent -> syʁ-ʒi-sɑ̃, marquent -> maʁ-kɑ̃), sans liaison du t ; jamais en passe globale
+- diérèses ciblées supplémentaires (uniquement via `dierese_words`, jamais en diérèse globale — « nuage » reste 1 syllabe) : « u+a » interne (suaves -> su-a-ves, muaient -> mu-a-ient, mortuaires -> mor-tu-aires) et « ou+i » (épanoui -> é-pa-nou-i, épanouit -> é-pa-nou-it) ; `DIERESE_WORD` élargi (`ua`, `oui` n’importe où)
+- « y » suivi d’une voyelle = glide /j/ : nouveaux prédicats `y_glide?`/`liaison_initial?` — il BLOQUE l’élision du mot précédent (peintre Yosen -> pein-tʁə, 2 syllabes) mais la liaison d’une consonne finale a bien lieu (les yeux -> lez-jø)
+- réparation de deux regex `/s\z/` (double backslash, ne matche jamais) en `/s\z/`
+- Bilan sonnets_oupoco.txt : 12: 48398→51067, 11: 5838→3181, 8: 7018→7280, 7: 1197→934, 10: 3702→3764, 9: 494→420, 5: 162→150 ; chatiments.txt : 12: 4205→4432, 11: 527→304. Replis (~) : 2539 (3,7 %). Liste « 11 syllabes à e muet final » : 2251→1053 lignes (rapports/…_v2…v4)
+- 16 nouveaux exemples RSpec (119 au total, 0 échec) ; `docs/scansion_rules.txt` mis à jour (1.4c, 1.5c bis, 1.5d, y-glide)
+
+## 0.1.4 - 2026-11-21
+
+- diérèse : le « ou » devant « é/è » compte double aussi (dénoué -> dé-nu-é) et le « i » devant « u » (médium -> mé-di-um)
+- `cluster_re_pronounced?` généralisé à tous les mots en -re (aussi -ère/-oire/-ire : mère -> mè-re, gloire -> gloi-re, terre -> ter-re, encore -> ɑ̃-kɔʁə), toujours uniquement en contexte classique
+- mode `:auto` : quand le re-scan global (diérèse + e des -re) ne tombe pas sur un mètre, re-scan ciblé mot à mot (`fix_candidate_words`, `dierese_words`/`cluster_words`) retenu dès qu'il atteint 6/8/10/12 — évite les sur-comptages des faux amis (vieux, dieu…)
+- Bilan sonnets_oupoco.txt : 12: 47180→48398, 11: 7052→5838, 8: 6945→7018, 7: 1270→1197 ; chatiments.txt : 12: 4085→4205, 11: 647→527. Replis (~) : 2531 (3,7 %)
+- 4 nouveaux exemples RSpec (103 au total, 0 échec) ; `docs/scansion_rules.txt` mis à jour (1.4c, 1.5d)
+
 ## 0.1.3 - 2026-11-21
 
 - `lib/phonemizer_ffi.rb` n'est plus embarqué : le backend FFI est le gem [`phonemizer_ffi`](https://rubygems.org/gems/phonemizer_ffi) publié sur rubygems.org, déclaré en dépendance (`add_dependency 'phonemizer_ffi', '~> 0.1'`) et chargé par `require "phonemizer_ffi"` ; le gem `ffi` et libespeak-ng restent ses prérequis transitifs. Replis inchangés (gem phonemizer, CLI `phonemize`, espeak-ng direct)

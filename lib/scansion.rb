@@ -145,7 +145,7 @@ module Scansion
                       maître moindre œuvre ombre peindre tonnerre ventre].freeze
 
   Result = Struct.new(:text, :raw, :phones, :syllables, :aligned, :dierese,
-                      keyword_init: true) do
+                      :word_spans, keyword_init: true) do
     # true si le vers est retombé sur la sortie brute d'espeak-ng (pas d'alignement)
     def fallback? = !aligned
   end
@@ -161,8 +161,28 @@ module Scansion
     :word, :segs, :out, :i, :cursor, :n,
     :prev_cons, :prev_vowel_phone, :run_split,
     :next_vowel_initial, :next_word, :prev_fragment, :dierese,
+    :dierese_words, :cluster_words, :ent_words,
     keyword_init: true
   ) do
+    # Diérèse active pour le mot courant : en mode ciblé (dierese_words
+    # renseigné — nil = diérèse globale, [] = aucune), seuls les mots listés
+    # sont coupés en deux syllabes.
+    def dierese_on?
+      dierese_words ? dierese_words.include?(word) : dierese
+    end
+
+    # e final d'un mot en -re compté (contexte classique) : même ciblage
+    # que la diérèse via cluster_words.
+    def cluster_on?
+      cluster_words ? cluster_words.include?(word) : dierese
+    end
+
+    # -ent prononcé (3e personne du pluriel : t'arrivent, surgissent, marquent)
+    # : ciblage mot à mot uniquement (ent_words), jamais en passe globale.
+    def ent_on?
+      ent_words ? ent_words.include?(word) : false
+    end
+
     def run
       while i < n
         r = step
@@ -180,13 +200,15 @@ module Scansion
       if cursor >= segs.size
         rest = word[i..]
         if rest.match?(/\Aents?\z/)
-          self.i = n # désinence -ent : jamais restaurée
+          out << ["ɑ̃", true] if ent_on? # -ent prononcé (3e pl.) : ɑ̃ restauré
+          self.i = n # désinence -ent : sinon jamais restaurée
         elsif rest.match?(SILENT_TAILS)
           return :done
         elsif i.positive? && rest[0] == word[i - 1]
           self.i += 1 # lettre redoublée en toute fin (pierre -> pjɛʁ)
         elsif rest.match?(/\Aes?\z/)
-          if i.positive? && word[i - 1].match?(VOWEL_LETTER)
+          if i.positive? && word[i - 1].match?(VOWEL_LETTER) &&
+             !Scansion.cluster_re_pronounced?(word, cluster_on?)
             self.i += 1 # e après une lettre voyelle : jamais restauré (gravée)
           else
             out << [SCHWA, true] # e muet final : on le restaure
@@ -227,6 +249,16 @@ module Scansion
 
     # Une lettre voyelle face à la tête de segment courante.
     def step_vowel(ch, head, head_vowel)
+      # pluriel en -es devant un mot à initiale vocalique : le e muet est
+      # PRONONCÉ avec liaison du s (« nouvelles amours » -> nu-vɛ-lə-za-muʁ)
+      if ch == "e" && word[i..].to_s == "es" && next_vowel_initial &&
+         !head_vowel && Scansion.plural_mute_e?(word)
+        out << [SCHWA, true]
+        self.i += 1
+        self.prev_vowel_phone = true
+        return true
+      end
+
       # une lettre voyelle qui amorce une terminaison muette de plusieurs
       # lettres devant un phone consonne n'est pas prononcée du tout
       # (boeufs -> bø, le « ufs » est muet ; les terminaisons d'une seule
@@ -236,6 +268,12 @@ module Scansion
          Scansion.silent_tail_from?(word, i) &&
          !word[i..].to_s.end_with?("x") && # le x de -aux/-eux peut faire liaison (beaux yeux)
          !Scansion.ent_tail?(word, i) # -ent a sa propre règle
+        # pluriel en -es devant une voyelle : le e muet est prononcé avec
+        # liaison du s (« nouvelles amours » -> nu-vɛ-lə-za-muʁ)
+        if word[i..].to_s == "es" && next_vowel_initial &&
+           Scansion.plural_mute_e?(word)
+          out << [SCHWA, true]
+        end
         self.i = n
         return true
       end
@@ -270,7 +308,18 @@ module Scansion
       # n'est pas muet (violent -> vjolɑ̃) : on laisse alors la branche voyelle.
       if ch == "e" && Scansion.ent_tail?(word, i) &&
          head[0] != SCHWA && !head.match?(/̃/)
-        if next_vowel_initial && head[0] == "t"
+        if ent_on?
+          # -ent prononcé (3e pers. pl.) : on abandonne le t de liaison
+          # éventuel et on émet la nasale (celle d'espeak si présente, ɑ̃ sinon)
+          self.cursor += 1 if head[0] == "t"
+          if segs[cursor] && segs[cursor][0].match?(/̃/)
+            out << [segs[cursor], true]
+            self.cursor += 1
+          else
+            out << ["ɑ̃", true]
+          end
+          self.i = n
+        elsif next_vowel_initial && head[0] == "t"
           out << [head, false] # liaison du t
           self.cursor += 1
           self.i = n
@@ -287,6 +336,7 @@ module Scansion
       # vaut que ʒ ; pages -> paʒ) — quand il est suivi d'une voyelle, ou
       # d'un s/x final après une voyelle (mais c'est garde son e : c initial)
       if ch == "e" && i >= 1 && %w[c g].include?(word[i - 1]) &&
+         !Scansion.cluster_re_pronounced?(word, cluster_on?) &&
          (Scansion.vowel_letter?(word[i + 1]) ||
           (i >= 2 && word[i - 2].match?(VOWEL_LETTER) &&
            Scansion.e_muet_tail?(word, i)))
@@ -304,11 +354,14 @@ module Scansion
       # Le glide est absorbé sans être émis : la voyelle restaurée « u » tient
       # lieu de noyau, et la suite de la voyelle (le « e » de « é », le « a »
       # de « rua ») reste dans le segment courant.
-      if dierese && ch == "u" &&
+      # le glide peut aussi être « w » (dénoué -> de-nwe : le « ou » vaut /u/
+      # et le « é » qui suit forme hiatus dé-nu-é en vers classique)
+      if dierese_on? && ch == "u" &&
          (word[i + 1].to_s.match?(/[éè]/) ||
           word[(i + 1)..].to_s.match?(/\Aa(?:[sx])?\z/) ||
-          word[(i + 1)..].to_s.start_with?("eu")) &&
-         head[0].match?(/[yɥ]/) &&
+          word[(i + 1)..].to_s.start_with?("eu") ||
+          (dierese_words && word[i + 1] == "a")) && # u+a en mode ciblé (suaves)
+         head[0].match?(/[yɥw]/) &&
          (head.each_char.count { |c| c.match?(VOWEL_PHONE) } >= 2 ||
           (segs[cursor + 1] && segs[cursor + 1][0].match?(VOWEL_PHONE)))
         out << ["u", true] # voyelle restaurée : diérèse
@@ -322,13 +375,15 @@ module Scansion
         return true
       end
 
-      # DIÉRÈSE du « ou » devant « a » : un « ou » suivi d'un « a » que
-      # espeak-ng a rendu par le glide « w » compte DOUBLE en vers classique
-      # (couardise -> cou-ar-dise, joua -> jou-a). Le glide « w » est absorbé
-      # sans être émis, la voyelle restaurée « u » tient lieu de noyau, et le
-      # « a » reste dans le segment courant.
-      if dierese && ch == "o" && word[i + 1] == "u" &&
-         word[i + 2].to_s == "a" &&
+      # DIÉRÈSE du « ou » devant « a » (et « é/è » : dénoué -> dé-nu-é) : un
+      # « ou » suivi d'un « a »/« é »/« è » que espeak-ng a rendu par le glide
+      # « w » compte DOUBLE en vers classique
+      # (couardise -> cou-ar-dise, joua -> jou-a, dénoué -> dé-nu-é).
+      # Le glide « w » est absorbé sans être émis, la voyelle restaurée « u »
+      # tient lieu de noyau, et le « a »/« e » reste dans le segment courant.
+      if dierese_on? && ch == "o" && word[i + 1] == "u" &&
+         (word[i + 2].to_s.match?(/[aéè]/) ||
+          (dierese_words && word[i + 2] == "i")) && # ou+i ciblé (épanoui)
          head[0] == "w" &&
          (head.length > 1 ||
           (segs[cursor + 1] && segs[cursor + 1][0].match?(VOWEL_PHONE)))
@@ -472,8 +527,8 @@ module Scansion
         # DIÉRÈSE : un « i » devant une voyelle pleine qu'espeak-ng a rendu
         # comme un glide compte pour DEUX syllabes en vers (lion -> li-jɔ̃,
         # violent -> vi-jɔ-lɑ̃, dieu -> di-jø) — sauf « hier » [jɛʁ]
-        if dierese && ch == "i" && word != "hier" &&
-           word[i + 1].to_s.match?(/[aàâäeéèêoôöœ]/) &&
+        if dierese_on? && ch == "i" && word != "hier" &&
+           word[i + 1].to_s.match?(/[aàâäeéèêoôöœu]/) &&
            segs[cursor + 1] && segs[cursor + 1][0].match?(VOWEL_PHONE)
           out << ["i", true] # voyelle restaurée : diérèse
         end
@@ -501,7 +556,8 @@ module Scansion
         return true
       elsif ch == "e"
         if i.positive? && word[i - 1].match?(VOWEL_LETTER) &&
-           Scansion.e_muet_tail?(word, i)
+           Scansion.e_muet_tail?(word, i) &&
+           !Scansion.cluster_re_pronounced?(word, cluster_on?)
           # le e FINAL après une lettre voyelle appartient au groupe voyelle
           # et n'est jamais compté (gravée -> gʁav, suivie -> syi-vi) ; un e
           # interne avant une consonne est compté (alouettes -> a-lou-e-tte)
@@ -513,7 +569,7 @@ module Scansion
            !word[i - 2].match?(VOWEL_LETTER) &&
            Scansion.e_muet_tail?(word, i) &&
            !Scansion.cr_e_pronounced?(word) &&
-           !Scansion.cluster_re_pronounced?(word, dierese)
+           !Scansion.cluster_re_pronounced?(word, cluster_on?)
           # e muet après un cluster -Cr- est MUET même devant une consonne :
           # sombre -> sɔ̃bʁ, nombre -> nɔ̃bʁ, mettre -> mɛtʁ, fièvre -> fjɛvʁ
           # (mais tables -> tablə : le -l- est conservé).
@@ -716,6 +772,11 @@ module Scansion
             head[0] == LIAISON_FINAL[word[i..][-1].to_s]
         # liaison d'une consonne finale devant une voyelle (les amis -> lɛzami,
         # fronts étoilés -> fʁɔ̃zetwal, quand il -> kɑ̃til, grand ami...)
+        # pluriel en -es : le e muet est prononcé avant la liaison
+        # (« nouvelles amours » -> nu-vɛ-lə-za-muʁ)
+        if word[i..].to_s.end_with?("es") && Scansion.plural_mute_e?(word)
+          out << [SCHWA, true]
+        end
         out << [head, false]
         self.cursor += 1
         self.i = n
@@ -812,6 +873,7 @@ module Scansion
     # (voir cr_e_pronounced?) est exempté.
     def elidable_final_e?(word, i, head, out, next_vowel_initial, next_word, dierese = false)
       return false unless final_e_before_vowel?(word, i, head, out, next_vowel_initial)
+      return false if next_word && y_glide?(next_word) # pas d'élision devant /j/
       # un e FINAL en -Cr- (sombre, mettre — terminaison vide/x, PAS avant un
       # s muet) est muet même devant un h aspiré (sombre héros ->
       # sɔ̃-bʁe-ʁo), donc ne jamais le restaurer comme élision ; la branche
@@ -826,6 +888,17 @@ module Scansion
 
     # CR_E_PRONOUNCED avec tolérance pour le pluriel en -s/-x (astres, hydres,
     # tonnerres, maîtres…)
+    # e muet + s/x final (pluriel : « âmes », « nouvelles », « tables ») :
+    # devant un mot à initiale vocalique, le e est PRONONCÉ avec liaison
+    # du s (« âmes hautaines » -> â-mə-zɔ-tɛn) — l'élagage ne le retire pas.
+    def plural_mute_e?(word)
+      w = word.to_s.downcase
+      return false unless w.match?(/e[sx]\z/)
+      stem = w[0...-2]
+      l = stem[-1].to_s
+      l.match?(/[bcdfghjklmnpqrstvwxz]/) || stem.end_with?("qu", "gu")
+    end
+
     def cr_e_pronounced?(word)
       CR_E_PRONOUNCED.any? { |w| word == w || word == "#{w}s" || word == "#{w}x" }
     end
@@ -836,9 +909,13 @@ module Scansion
     # â-pʁə, mœʁ-tʁə… La règle 1.5d (e muet après -Cr- jamais compté) est une
     # règle de prononciation moderne : elle ne s'applique qu'en mode
     # contemporain (dierese: false / --no-dierese).
-    def cluster_re_pronounced?(word, dierese)
-      w = word.sub(/s\z/, "") # tolérance pour le pluriel en -s (pauvres, centimes…)
-      dierese && w.end_with?("re") && !w[-3].to_s.match?(VOWEL_LETTER)
+    # En contexte classique, le e final de tout mot en -re est COMPTÉ
+    # (notre -> no-tʁə, vivre -> vi-vʁə, mais aussi -ère/-oire/-ire :
+    # mère -> mè-re, chère -> chè-re, gloire -> gloi-re, terre -> ter-re…).
+    # `on` = false en mode contemporain, true sinon (ou ciblage cluster_words).
+    def cluster_re_pronounced?(word, on)
+      w = word.sub(/s\z/, "") # tolérance pour le pluriel en -s (pauvres, gloires…)
+      on && (w.end_with?("re") || w.match?(/[cgq]u?e\z/))
     end
 
     # word[i] est un e strictement final (terminaison vide ou x) après un
@@ -1059,12 +1136,14 @@ module Scansion
     # Renvoie [pairs, new_cursor] avec des paires [phone, restauré ?],
     # ou nil quand le mot ne peut pas être aligné sûrement.
     def align_word(word, segs, cursor, next_vowel_initial: false, next_word: nil,
-                   prev_fragment: false, dierese: false)
+                   prev_fragment: false, dierese: false, dierese_words: nil,
+                   cluster_words: nil, ent_words: nil)
       a = Aligner.new(word: word, segs: segs, out: [], i: 0, cursor: cursor,
                       n: word.size, prev_cons: nil, prev_vowel_phone: false,
                       run_split: false, next_vowel_initial: next_vowel_initial,
                       next_word: next_word, prev_fragment: prev_fragment,
-                      dierese: dierese)
+                      dierese: dierese, dierese_words: dierese_words,
+                      cluster_words: cluster_words, ent_words: ent_words)
       a.run ? [a.out, a.cursor] : nil
     end
 
@@ -1074,8 +1153,25 @@ module Scansion
     # suivi d'une voyelle (le h est toujours muet en français, muet ou aspiré,
     # donc le mot commence quand même par un SON voyelle : hasard -> /azaʁ/).
     # Sert au découpage des suites / aux frontières (au hasard -> o-a-zaʁ).
+    # « y » suivi d'une voyelle = glide /j/ (Yosen, yeux) : initiale
+    # CONSONANTIQUE pour l'élision (peintre Yosen -> pein-tʁə, pas d'élision),
+    # mais la liaison d'une consonne finale du mot précédent a bien lieu
+    # (les yeux ->lez-jø, des yachts -> de-zjat).
+    def y_glide?(word)
+      w = word.to_s.downcase
+      w[0] == "y" && w[1].to_s.match?(VOWEL_LETTER)
+    end
+
+    # Initiale prenant la liaison (voyelle, h muet, ou y-glide).
+    def liaison_initial?(word)
+      vowel_initial?(word) || y_glide?(word)
+    end
+
     def vowel_initial?(word)
       first = word[0].to_s
+      # « y » suivi d'une voyelle est le glide /j/ (CONSONNE) : Yosen, yacht,
+      # yeux commencent par un son consonantique — pas d'élision devant eux
+      return false if first == "y" && word[1].to_s.match?(VOWEL_LETTER)
       return true if first.match?(VOWEL_LETTER)
       first == "h" && word[1].to_s.match?(VOWEL_LETTER)
     end
@@ -1156,13 +1252,71 @@ module Scansion
     # cache : Hash optionnel partagé entre appels (utilisé par process_lines)
     # pour que chaque paire (ligne, options) ne soit scannée — et espeak-ng
     # relancé — qu'une fois.
+    # Mots d'une ligne potentiellement soumis à diérèse (règles 1.4c) :
+    # « i » suivi d'une voyelle (sauf hier), « u » suivi de é/è/eu ou d'un a
+    # final, « ou » suivi de a. Servent au re-scan ciblé de process_line(:auto).
+    DIERESE_WORD = /i[aàâäeéèêoôöœu]|u[éè]|ueu|ua|oui|oua/.freeze
+
+    # Mots d’une ligne candidats à un « +1 » en contexte classique : diérèse
+    # (règles 1.4c) OU e final compté d’un mot en -re (cluster_re_pronounced?).
+    def fix_candidate_words(line)
+      words_of(normalize_input(line)).select do |w|
+        next false if w == "hier"
+        w.match?(DIERESE_WORD) || w.sub(/s\z/, "").end_with?("re") ||
+          w.match?(/[cgq]u?e[sx]?\z/) || w.end_with?("ent")
+      end
+    end
+
+    # Point d'entrée public. dierese: :auto re-scanne avec des diérèses quand
+    # le compte brut ne tombe pas sur un mètre de vers (11 -> 12, etc.) :
+    # d'abord diérèse globale + e des -Cre compté (contexte classique) ;
+    # si le résultat n'atteint pas un mètre, re-scan ciblé — e des -Cre compté
+    # mais diérèse appliquée à UN seul mot candidat à la fois — et on retient
+    # la première variante qui tombe sur un mètre.
+    # cache : Hash optionnel partagé entre appels (utilisé par process_lines)
+    # pour que chaque paire (ligne, options) ne soit scannée — et espeak-ng
+    # relancé — qu'une fois.
     def process_line(line, dierese: false, cache: nil)
       r = scan_line(line, dierese: false, cache: cache)
       if dierese == true
         r = scan_line(line, dierese: true, cache: cache)
       elsif dierese == :auto && r.aligned && !METER.include?(r.syllables)
+        # 1) diérèse globale + e des -re comptés (contexte classique)
         r2 = scan_line(line, dierese: true, cache: cache)
         r = r2 if r2.aligned && METER.include?(r2.syllables)
+        # 1b) e muet prononcé devant une pause graphique (, ; : ! ? …),
+        #     UNIQUEMENT si le vers devient alexandrin (12) : en vers
+        #     irrégulier ou contemporain, la pause silencie le e muet
+        if !METER.include?(r.syllables)
+          r2b = scan_line(line, dierese: false, pause_e: true, cache: cache)
+          r = r2b if r2b.aligned && r2b.syllables == 12
+        end
+        if !METER.include?(r.syllables)
+          r2c = scan_line(line, dierese: true, pause_e: true, cache: cache)
+          r = r2c if r2c.aligned && r2c.syllables == 12
+        end
+        # 2) e des -re comptés, aucune diérèse
+        if !METER.include?(r.syllables)
+          r3 = scan_line(line, dierese: true, dierese_words: [], cache: cache)
+          r = r3 if r3.aligned && METER.include?(r3.syllables)
+        end
+        # 3) ciblage mot à mot : diérèse sur w seul (e des -re tous comptés),
+        #    puis diérèse + e de -re sur w seul
+        if !METER.include?(r.syllables)
+          fix_candidate_words(line).each do |w|
+            combos = [[w, nil, nil], [w, [w], nil]]
+            combos << [w, nil, [w]] if w.end_with?("ent")
+            combos.each do |dw, cw, ew|
+              r4 = scan_line(line, dierese: true, dierese_words: dw,
+                             cluster_words: cw, ent_words: ew, cache: cache)
+              if r4.aligned && METER.include?(r4.syllables)
+                r = r4
+                break
+              end
+            end
+            break if METER.include?(r.syllables)
+          end
+        end
       end
       r
     end
@@ -1189,16 +1343,22 @@ module Scansion
     # Enveloppe mémoïsante autour de compute_scan_line : avec un cache partagé
     # (voir process_lines), chaque paire (ligne, dierese)
     # n'est calculée — et espeak-ng relancé — qu'une fois.
-    def scan_line(line, dierese: false, cache: nil)
+    def scan_line(line, dierese: false, cache: nil, dierese_words: nil, cluster_words: nil,
+                  ent_words: nil, pause_e: false)
       if cache
-        key = [line, dierese]
+        key = [line, dierese, dierese_words, cluster_words, ent_words, pause_e]
         return cache[key] if cache.key?(key)
-        return cache[key] = compute_scan_line(line, dierese: dierese)
+        return cache[key] = compute_scan_line(line, dierese: dierese,
+                                               dierese_words: dierese_words,
+                                               cluster_words: cluster_words,
+                                               ent_words: ent_words, pause_e: pause_e)
       end
-      compute_scan_line(line, dierese: dierese)
+      compute_scan_line(line, dierese: dierese, dierese_words: dierese_words,
+                       cluster_words: cluster_words, ent_words: ent_words, pause_e: pause_e)
     end
 
-    def compute_scan_line(line, dierese: false)
+    def compute_scan_line(line, dierese: false, dierese_words: nil, cluster_words: nil,
+                          ent_words: nil, pause_e: false)
       # normalise une fois pour que words_of et espeak voient les mêmes lettres
       clean = normalize_input(line)
       words = words_of(clean)
@@ -1216,11 +1376,12 @@ module Scansion
 
       words.each_with_index do |w, k|
         res = align_word(w, segs, cursor,
-                         next_vowel_initial: vowel_initial?(words[k + 1].to_s),
+                         next_vowel_initial: liaison_initial?(words[k + 1].to_s),
                          next_word: words[k + 1],
                          prev_fragment: k.positive? &&
                            %w[c j l d n s t m qu].include?(words[k - 1]),
-                         dierese: dierese)
+                         dierese: dierese, dierese_words: dierese_words,
+                         cluster_words: cluster_words, ent_words: ent_words)
         if res.nil?
           aligned = false
           break
@@ -1247,13 +1408,14 @@ module Scansion
         # un e final PRONONCÉ (CR_E_PRONOUNCED, ou -Cre en contexte classique)
         # reste compté même devant une pause : « ivre, complice » -> i-vʁə (2)
         pronounced = cr_e_pronounced?(w[:word]) ||
-                     cluster_re_pronounced?(w[:word], dierese)
+                     cluster_re_pronounced?(w[:word],
+                                            cluster_words ? cluster_words.include?(w[:word]) : dierese)
         if next_word.nil?                # fin de vers : e muet non compté
           pairs.pop
-        elsif elides_before?(next_word)  # élision devant une voyelle / un h muet (pas un h aspiré)
-          pairs.pop
-        elsif paused[k] && !pronounced   # devant une pause (, ; : ! ? … —)
-          pairs.pop
+        elsif elides_before?(next_word) && !plural_mute_e?(w[:word])
+          pairs.pop # élision devant une voyelle / un h muet (sauf pluriel -es/-eux : e prononcé)
+        elsif paused[k] && !pronounced && !pause_e
+          pairs.pop # devant une pause (, ; : ! ? …) ; pause_e : e compté (alexandrine)
         end
       end
 
@@ -1269,8 +1431,32 @@ module Scansion
       dier = words_out.sum do |w|
         w[:pairs].count { |ph, restored| restored && %w[i u].include?(ph) }
       end
+
+      # spans mot -> indices de syllabes (pour les outils en aval, ex.
+      # accent_de_phrase) : même règle de comptage que count_syllables
+      # (un glide y/ɥ suivi d'une voyelle n'est pas un noyau, sauf si la
+      # voyelle ouvre le mot suivant)
+      word_spans = []
+      syl = 0
+      words.each_with_index do |w, k|
+        start = barriers[k][0]
+        fin = k + 1 < barriers.size ? barriers[k + 1][0] : flat.size
+        first = syl
+        (start...fin).each do |fk|
+          ph = flat[fk]
+          next unless ph[0].match?(VOWEL_PHONE)
+          nxt = flat[fk + 1]
+          if (ph[0] == "y" || ph[0] == "ɥ") && nxt && nxt[0].match?(VOWEL_PHONE) &&
+             !(k + 1 < barriers.size && barriers[k + 1][0] == fk + 1)
+            next
+          end
+          syl += 1
+        end
+        word_spans << { word: w, first: first, last: syl - 1 }
+      end
       Result.new(text: line, raw: raw, phones: phones,
-                 syllables: syllables, aligned: aligned, dierese: dier)
+                 syllables: syllables, aligned: aligned, dierese: dier,
+                 word_spans: word_spans)
     end
 
     # -- CLI -------------------------------------------------------------
