@@ -25,7 +25,9 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      « la table » -> la-tabl (2 syllabes).
 
 1.4b E muet devant une pause graphique (, ; : ! ? … —) : non compté,
-     comme en fin de vers.
+     comme en fin de vers — SAUF si le e est prononcé (CR_E_PRONOUNCED ou,
+     en contexte classique, mot en -Cre : voir 1.5d) : « ivre, complice »
+     -> i-vʁə (le e de « ivre » reste compté devant la virgule).
      « perclus des coups de rêche, l’abstinente » ->
      pɛʁ-kly-de-ku-də-ʁɛʃ-lab-sti-nɑ̃t (9 syllabes, pas 10) ;
      « qui se retourne, s’éloigne » -> ki-sə-ʁə-tuʁn-se-lwaɲ (6 syllabes).
@@ -80,6 +82,14 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      devant une consonne (contrairement à -le : « tables blanches » ->
      ta-blə-blɑ̃ʃ). Ne s’applique qu’en fin de mot (ou devant s/x muet) ;
      un e interne avant une consonne reste compté (règle 1.1).
+     EN CONTEXTE CLASSIQUE (diérèse active, voir 1.4c), le e final de tout
+     mot en -Cre (consonne + r + e, pluriel en -s accepté) est COMPTÉ :
+     notre -> no-tʁə, vivre -> vi-vʁə, âpre -> â-pʁə, spectre -> spɛk-tʁə,
+     meurtre -> mœʁ-tʁə, centre -> sɑ̃-tʁə, pauvre -> po-vʁə, ivre -> i-vʁə,
+     sombre -> sɔ̃-bʁə, décembre -> de-sɑ̃-bʁə… (voir cluster_re_pronounced?).
+     La règle 1.5d stricte n'est donc appliquée qu'en mode contemporain
+     (--no-dierese). Le re-scan classique n'est retenu que s'il mène le vers
+     à un mètre (6/8/10/12), donc les vers déjà justes ne sont pas touchés.
      EXCEPTIONS (CR_E_PRONOUNCED, pluriels en -s/-x acceptés via
      cr_e_pronounced?) : « astre », « battre », « croître », « entendre »,
      « entre », « être », « guerre », « hydre », « maître », « moindre »,

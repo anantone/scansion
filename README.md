@@ -20,7 +20,7 @@ Prérequis
   apt install espeak-ng     # Debian/Ubuntu
   brew install espeak-ng    # macOS
   ```
-- Backend préféré (optionnel, en processus, sans fork/exec par mot) : le gem `ffi` plus `libespeak-ng` — `gem install ffi && apt install libespeak-ng-dev` (sur macOS avec un espeak-ng Homebrew « keg-only », définir `PHONEMIZER_ESPEAK_LIB`).
+- Backend préféré (en processus, sans fork/exec par mot) : le gem [`phonemizer_ffi`](https://rubygems.org/gems/phonemizer_ffi), dépendance déclarée de `scansion` — il tire lui-même le gem `ffi` et a besoin de `libespeak-ng` (`apt install libespeak-ng-dev` ; sur macOS avec un espeak-ng Homebrew « keg-only », définir `PHONEMIZER_ESPEAK_LIB`).
 - Replis, dans l'ordre : l'API du gem [`phonemizer`](https://rubygems.org/gems/phonemizer), le CLI `phonemize` qu'il fournit, puis espeak-ng directement.
 
 
@@ -36,7 +36,7 @@ gem "scansion"
 Ou installez depuis ce répertoire :
 
 ```bash
-gem build scansion.gemspec && gem install ./scansion-0.1.0.gem
+gem build scansion.gemspec && gem install ./scansion-0.1.3.gem
 ```
 
 
@@ -97,7 +97,6 @@ Structure
 ├── bin/scansion              exécutable (scansion [options] [FILE|-])
 ├── lib/scansion.rb           bibliothèque + point d'entrée CLI Scansion.main
 ├── lib/scansion/version.rb   Scansion::VERSION
-├── lib/phonemizer_ffi.rb     backend FFI optionnel en processus pour espeak-ng
 ├── spec/                     suite RSpec
 └── docs/scansion_rules.txt   règles de scansion avec exemples travaillés
 ```

@@ -28,15 +28,16 @@
 # Limites : petite liste de h aspiré (les autres mots en h élident), pas de
 # dictionnaire d'exceptions, consonnes finales muettes approximatives.
 #
-# Dépendances : espeak-ng sur le $PATH. Backend préféré : phonemizer_ffi.rb
-# (dans ce répertoire) appelant libespeak-ng directement via le gem `ffi` —
-#   gem install ffi && apt install libespeak-ng1
-# (sur macOS avec un espeak-ng Homebrew « keg-only », définir
+# Dépendances : le gem phonemizer_ffi (backend FFI préféré, dépendance
+# déclarée du gem — il tire lui-même le gem `ffi` et appelle libespeak-ng
+# directement, donc aussi espeak-ng/libespeak-ng installé :
+#   apt install libespeak-ng1   # ou brew install espeak-ng
+# ; sur macOS avec un espeak-ng Homebrew « keg-only », définir
 # PHONEMIZER_ESPEAK_LIB).
 # Replis, dans l'ordre : l'API du gem phonemizer (`gem install phonemizer`),
-# le CLI `phonemize` qu'il fournit, puis espeak-ng directement. Le backend FFI
-# produit une IPA identique octet par octet au gem pour notre usage (asserté
-# dans spec/scansion_spec.rb).
+# le CLI `phonemize` qu'il fournit, puis espeak-ng directement sur le $PATH.
+# Le backend FFI produit une IPA identique octet par octet au gem pour notre
+# usage (asserté dans spec/scansion_spec.rb).
 #
 # Structure : le module Scansion est une bibliothèque pure (le require de ce
 # fichier est sans effet de bord — pas d'OptionParser sur l'ARGV de l'hôte) ;
@@ -251,7 +252,7 @@ module Scansion
       # l'a élidé, donc on restaure un schwa SANS consommer la tête de segment
       # (conditions exactes dans elidable_final_e?) ; l'élagage de scansion
       # ci-dessous retire à nouveau ce schwa restauré (élision).
-      if Scansion.elidable_final_e?(word, i, head, out, next_vowel_initial, next_word)
+      if Scansion.elidable_final_e?(word, i, head, out, next_vowel_initial, next_word, dierese)
         out << [SCHWA, true]
         self.i += 1
         return true
@@ -511,13 +512,15 @@ module Scansion
         if i >= 2 && word[i - 1] == "r" &&
            !word[i - 2].match?(VOWEL_LETTER) &&
            Scansion.e_muet_tail?(word, i) &&
-           !Scansion.cr_e_pronounced?(word)
+           !Scansion.cr_e_pronounced?(word) &&
+           !Scansion.cluster_re_pronounced?(word, dierese)
           # e muet après un cluster -Cr- est MUET même devant une consonne :
           # sombre -> sɔ̃bʁ, nombre -> nɔ̃bʁ, mettre -> mɛtʁ, fièvre -> fjɛvʁ
           # (mais tables -> tablə : le -l- est conservé).
-          # SAUF les exceptions CR_E_PRONOUNCED (voir cr_e_pronounced?) : leur
-          # e final est prononcé devant une consonne, donc on laisse passer à
-          # la restauration normale ci-dessous.
+          # SAUF les exceptions CR_E_PRONOUNCED (voir cr_e_pronounced?) et,
+          # en contexte classique (dierese), les mots en -Cre dont le e final
+          # est compté (voir cluster_re_pronounced? : notre -> no-tʁə) :
+          # on laisse alors passer à la restauration normale ci-dessous.
           self.i += 1
           self.prev_vowel_phone = true
           return true
@@ -807,7 +810,7 @@ module Scansion
     # mettre) : leur e est muet de toute façon, même devant un h aspiré
     # (sombre héros -> sɔ̃-bʁe-ʁo, pas sɔ̃-bʁə-...) ; CR_E_PRONOUNCED
     # (voir cr_e_pronounced?) est exempté.
-    def elidable_final_e?(word, i, head, out, next_vowel_initial, next_word)
+    def elidable_final_e?(word, i, head, out, next_vowel_initial, next_word, dierese = false)
       return false unless final_e_before_vowel?(word, i, head, out, next_vowel_initial)
       # un e FINAL en -Cr- (sombre, mettre — terminaison vide/x, PAS avant un
       # s muet) est muet même devant un h aspiré (sombre héros ->
@@ -815,7 +818,7 @@ module Scansion
       # -Cr- de step_vowel s'en charge. Les mots en -es (propres airs ->
       # pʁɔ-pʁə-zɛʁ) gardent leur e via la règle 1.5. CR_E_PRONOUNCED
       # (voir cr_e_pronounced?) exempté.
-      return false if cr_mute_final_e?(word, i)
+      return false if cr_mute_final_e?(word, i, dierese)
       return false if %w[e ɛ].include?(head[0]) && !head.match?(/̃/) &&
                       next_word.to_s.match?(NEXT_VOWELISH)
       true
@@ -827,12 +830,26 @@ module Scansion
       CR_E_PRONOUNCED.any? { |w| word == w || word == "#{w}s" || word == "#{w}x" }
     end
 
+    # En contexte classique (dierese actif), le e final d'un mot en -Cre
+    # (consonne + r + e : notre, vivre, âpre, spectre, meurtre, centre,
+    # pauvre, ivre, ombre, sombre, décembre…) est COMPTÉ — no-tre, vi-vre,
+    # â-pʁə, mœʁ-tʁə… La règle 1.5d (e muet après -Cr- jamais compté) est une
+    # règle de prononciation moderne : elle ne s'applique qu'en mode
+    # contemporain (dierese: false / --no-dierese).
+    def cluster_re_pronounced?(word, dierese)
+      w = word.sub(/s\z/, "") # tolérance pour le pluriel en -s (pauvres, centimes…)
+      dierese && w.end_with?("re") && !w[-3].to_s.match?(VOWEL_LETTER)
+    end
+
     # word[i] est un e strictement final (terminaison vide ou x) après un
     # cluster -Cr- dont le e est muet (sombre -> sɔ̃bʁ, mettre -> mɛtʁ) —
-    # SAUF CR_E_PRONOUNCED (astre -> as-tʁə, entendre -> ɑ̃-tɑ̃-dʁə, …).
-    def cr_mute_final_e?(word, i)
+    # SAUF CR_E_PRONOUNCED (astre -> as-tʁə, entendre -> ɑ̃-tɑ̃-dʁə, …) et,
+    # en contexte classique, sauf les mots en -Cre comptés
+    # (voir cluster_re_pronounced? : notre -> no-tʁə en vers classique).
+    def cr_mute_final_e?(word, i, dierese = false)
       i >= 2 && word[i - 1] == "r" && !word[i - 2].match?(VOWEL_LETTER) &&
-        word[(i + 1)..].to_s.match?(/\A(?:x)?\z/) && !cr_e_pronounced?(word)
+        word[(i + 1)..].to_s.match?(/\A(?:x)?\z/) && !cr_e_pronounced?(word) &&
+        !cluster_re_pronounced?(word, dierese)
     end
 
     # -- phonétisation -------------------------------------------------
@@ -848,7 +865,7 @@ module Scansion
     end
 
     # Phonétise, en essayant dans l'ordre : le backend FFI en processus
-    # (phonemizer_ffi.rb, appelle libespeak-ng directement — pas de
+    # (gem phonemizer_ffi, appelle libespeak-ng directement — pas de
     # fork/exec par mot, sortie identique octet par octet au gem, voir
     # spec/scansion_spec), puis l'API du gem phonemizer (son nom de require),
     # puis le CLI `phonemize` qu'il fournit, puis espeak-ng directement.
@@ -863,13 +880,14 @@ module Scansion
       clean_ipa(raw.to_s)
     end
 
-    # Le backend FFI (phonemizer_ffi.rb dans ce répertoire) : même API
-    # Phonemizer.phonemize, mais en processus. Mémoïsé comme indisponible
-    # après le premier échec (gem ffi ou libespeak-ng manquants) pour ne pas
-    # retenter toute la chaîne de repli à chaque mot.
+    # Le backend FFI, fourni par le gem phonemizer_ffi (dépendance du gem
+    # scansion) : même API Phonemizer.phonemize, mais en processus, appelant
+    # libespeak-ng directement. Mémoïsé comme indisponible après le premier
+    # échec (gem ffi ou libespeak-ng manquants) pour ne pas retenter toute la
+    # chaîne de repli à chaque mot.
     def phonemizer_ffi(line)
       return nil if @ffi_unavailable
-      require_relative "phonemizer_ffi"
+      require "phonemizer_ffi"
       Phonemizer.phonemize(line, language: "fr")
     rescue StandardError, LoadError
       @ffi_unavailable = true
@@ -1226,11 +1244,15 @@ module Scansion
         next unless pairs.last && pairs.last[0] == SCHWA
 
         next_word = (words_out[k + 1] || {})[:word]
+        # un e final PRONONCÉ (CR_E_PRONOUNCED, ou -Cre en contexte classique)
+        # reste compté même devant une pause : « ivre, complice » -> i-vʁə (2)
+        pronounced = cr_e_pronounced?(w[:word]) ||
+                     cluster_re_pronounced?(w[:word], dierese)
         if next_word.nil?                # fin de vers : e muet non compté
           pairs.pop
         elsif elides_before?(next_word)  # élision devant une voyelle / un h muet (pas un h aspiré)
           pairs.pop
-        elsif paused[k]                  # devant une pause (, ; : ! ? … —)
+        elsif paused[k] && !pronounced   # devant une pause (, ; : ! ? … —)
           pairs.pop
         end
       end

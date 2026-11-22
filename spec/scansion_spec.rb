@@ -618,6 +618,57 @@ describe "hiatus entre deux mots (count_syllables avec barrières)" do
   end
 end
 
+describe "e final des mots en -Cre en contexte classique (cluster_re_pronounced?)" do
+it "contexte classique : « sombre » compte son e final (sɔ̃-bʁə, 8 syllabes)" do
+  stub_espeak("O sombre mer, que me veux-tu ?" => "osɔ̃bʁmɛʁkəməvøty")
+  r = described_class.process_line("O sombre mer, que me veux-tu ?", dierese: true)
+  expect(r).to have_attributes(aligned: true, syllables: 8)
+  expect(r.phones).to eq("o-sɔ̃-bʁə-mɛʁ-kə-mə-vø-ty")
+end
+it "mode contemporain : « sombre » reste 1 syllabe (sɔ̃bʁ, 7 syllabes)" do
+  stub_espeak("O sombre mer, que me veux-tu ?" => "osɔ̃bʁmɛʁkəməvøty")
+  r = process("O sombre mer, que me veux-tu ?")
+  expect(r).to have_attributes(aligned: true, syllables: 7)
+  expect(r.phones).to eq("o-sɔ̃bʁ-mɛʁ-kə-mə-vø-ty")
+end
+it "contexte classique : « notre » -> no-tʁə (6 syllabes)" do
+  stub_espeak("Qui vole à Notre-Dame." => "kivɔlanotʁdam")
+  r = described_class.process_line("Qui vole à Notre-Dame.", dierese: true)
+  expect(r).to have_attributes(aligned: true, syllables: 6)
+  expect(r.phones).to eq("ki-vɔl-a-no-tʁə-dam")
+end
+it "mode contemporain : « notre » -> notʁ (5 syllabes)" do
+  stub_espeak("Qui vole à Notre-Dame." => "kivɔlanotʁdam")
+  r = process("Qui vole à Notre-Dame.")
+  expect(r).to have_attributes(aligned: true, syllables: 5)
+  expect(r.phones).to eq("ki-vɔl-a-notʁ-dam")
+end
+it "« ivre, » devant une pause garde son e compté en classique (i-vʁə, 12 syllabes)" do
+  stub_espeak("Le soldat, gai, féroce, ivre, complice obscur," => "ləsɔldagefeʁɔsivʁkɔ̃plisɔbskyʁ")
+  r = described_class.process_line("Le soldat, gai, féroce, ivre, complice obscur,", dierese: true)
+  expect(r).to have_attributes(aligned: true, syllables: 12)
+  expect(r.phones).to eq("lə-sɔl-da-ge-fe-ʁɔs-i-vʁə-kɔ̃-plis-ɔb-skyʁ")
+end
+it "mode contemporain : « ivre, » -> ivʁ devant la virgule (11 syllabes)" do
+  stub_espeak("Le soldat, gai, féroce, ivre, complice obscur," => "ləsɔldagefeʁɔsivʁkɔ̃plisɔbskyʁ")
+  r = process("Le soldat, gai, féroce, ivre, complice obscur,")
+  expect(r).to have_attributes(aligned: true, syllables: 11)
+  expect(r.phones).to eq("lə-sɔl-da-ge-fe-ʁɔs-ivʁ-kɔ̃-plis-ɔb-skyʁ")
+end
+it "CR_E_PRONOUNCED devant une pause : le e restauré de « astre » n'est pas élagué (as-tʁə)" do
+  stub_espeak("l'astre, brillant" => "lastʁbʁijɑ̃")
+  r = process("l'astre, brillant")
+  expect(r).to have_attributes(aligned: true, syllables: 4)
+  expect(r.phones).to eq("la-stʁə-bʁi-jɑ̃")
+end
+it "pluriel en -s d'un mot en -vre : « pauvres » -> po-vʁə (6 syllabes)" do
+  stub_espeak("Pauvres petits oiseaux !" => "povʁpətizwazo")
+  r = described_class.process_line("Pauvres petits oiseaux !", dierese: true)
+  expect(r).to have_attributes(aligned: true, syllables: 6)
+  expect(r.phones).to eq("po-vʁə-pə-tiz-wa-zo")
+end
+  end
+
   describe "bibliothèque sans effets de bord" do
     it "se require sans toucher à ARGV (Scansion.main n'est appelé que as script)" do
       # si le CLI tournait au require, l OptionParser lèverait InvalidOption
@@ -636,7 +687,7 @@ end
     # Les deux backends définissent le module Phonemizer : on les exécute
     # chacun dans un sous-processus et on compare leurs sorties brutes.
     def backend_output(which)
-      req = which == :ffi ? File.expand_path("../lib/phonemizer_ffi.rb", __dir__) : "phonemizer"
+      req = which == :ffi ? "phonemizer_ffi" : "phonemizer"
       prog = <<~RUBY
         require #{req.inspect}
         ARGF.each_line do |l|
