@@ -4,7 +4,7 @@ scansion
 [![Gem Version](https://badge.fury.io/rb/scansion.svg)](https://badge.fury.io/rb/scansion)
 [![Licence MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Phonétise des vers français avec [espeak-ng](https://github.com/espeak-ng/espeak-ng) et restaure le e muet (*e caduc*) selon les règles de la scansion classique, puis marque les frontières de syllabes et compte les syllabes (alexandrins, etc.).
+Phonétise des vers français avec [espeak-ng](https://github.com/espeak-ng/espeak-ng), puis marque les frontières de syllabes et compte les syllabes.
 
 Depuis la 1.0.0, le gem embarque aussi `Scansion::Accents` (`require "scansion/accents"`) : il calcule les **accents de phrase** (ˈ, un par groupe rythmique) et les **accents secondaires de mot** (ˌ) sur chaque vers scansionné — voir la section « Accents de phrase et accents secondaires » ci-dessous.
 
