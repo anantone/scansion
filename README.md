@@ -6,6 +6,8 @@ scansion
 
 Phonétise des vers français avec [espeak-ng](https://github.com/espeak-ng/espeak-ng) et restaure le e muet (*e caduc*) selon les règles de la scansion classique, puis marque les frontières de syllabes et compte les syllabes (alexandrins, etc.).
 
+Depuis la 1.0.0, le gem embarque aussi `Scansion::Accents` (`require "scansion/accents"`) : il calcule les **accents de phrase** (ˈ, un par groupe rythmique) et les **accents secondaires de mot** (ˌ) sur chaque vers scansionné — voir la section « Accents de phrase et accents secondaires » ci-dessous.
+
 ATTENTION: PROJET EN DÉVELOPPEMENT - ne pas utiliser sans vérification
 
 La liste complète des règles, avec exemples travaillés, est dans [`docs/scansion_rules.txt`](docs/scansion_rules.txt).
@@ -36,7 +38,7 @@ gem "scansion"
 Ou installez depuis ce répertoire :
 
 ```bash
-gem build scansion.gemspec && gem install ./scansion-0.1.3.gem
+gem build scansion.gemspec && gem install ./scansion-1.0.0.gem
 ```
 
 
@@ -55,7 +57,7 @@ Au coin du feu, dans la langueur des rêveries!
 
 Options :
 
-- `--no-dierese` — mode contemporain : pas de diérèse contextuelle, et l'e muet n'est jamais compté devant une consonne (« mes pères criaient dessous mes pieds » -> 8 syllabes) ; en contexte classique (`:auto`), il reste compté (« la table ronde » -> 3 syllabes)
+- `--no-dierese` — mode contemporain : pas de diérèse contextuelle, et l'e caduc n'est jamais compté devant une consonne (« mes pères criaient dessous mes pieds » -> 8 syllabes) ; le « e fixe » des monosyllabes grammaticaux (le, de, me, te, se, que, ne, je, ce) reste toujours compté (« le passé » -> lə-pa-se) ; en contexte classique (`:auto`), tout e muet reste compté (« la table ronde » -> 3 syllabes)
 - `-s`, `--syllables` — n'afficher que le décompte des syllabes
 
 Les arguments peuvent être des chemins de fichiers, `-` (stdin), ou du texte de vers en ligne.

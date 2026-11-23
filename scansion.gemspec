@@ -13,7 +13,9 @@ Gem::Specification.new do |spec|
   spec.summary       = 'Scansion de vers français avec restauration du e muet (e caduc)'
   spec.description   = 'Phonétise des vers français avec espeak-ng et restaure le e muet ' \
                        '(e caduc) selon les règles de la scansion classique, puis marque ' \
-                       'les frontières de syllabes et compte les syllabes.'
+                       'les frontières de syllabes et compte les syllabes. Depuis la 1.0.0, ' \
+                       'embarque aussi Scansion::Accents : accents de phrase (ˈ) et ' \
+                       'accents secondaires de mot (ˌ) — require "scansion/accents".'
   spec.homepage      = 'https://github.com/anantone/scansion'
   spec.license       = 'MIT'
   spec.required_ruby_version = '>= 3.1'

@@ -3,14 +3,15 @@
 ## 1.0.0 - 2026-11-23
 
 - **Majeur** : `accents.rb` rejoint le gem (`lib/scansion/accents.rb`, `require "scansion/accents"`) — l'ancien outil externe `accent_de_phrase.rb` est renommé et déplacé. Le module `AccentDePhrase` devient **`Scansion::Accents`** (changement cassant : mettre à jour les `require` et les appels). Deux couches d'accent : accent de phrase ˈ par groupe rythmique (`Analysis#accents`, `#render`) et accent secondaire de mot ˌ (`Analysis#word_accents`) ; l'alignement mot -> syllabe consomme `Result#word_spans`
-- `spec/accents_spec.rb` : 4 nouveaux exemples (espeak bouchonné, déterministe sans espeak-ng) — 142 exemples au total, 0 échec
-- README : nouvelle section « Accents de phrase et accents secondaires » + structure mise à jour ; commentaires d'en-tête d'`accents.rb` traduits en français
+- exception « e fixe » (nouveau prédicat `stable_schwa?` + constante `STABLE_SCHWA`) : le schwa des monosyllabes grammaticaux (le, de, me, te, se, que, ne, je, ce) n'est JAMAIS élidé devant une consonne, même en mode contemporain — « derrière la tête le passé jouit » -> dɛ-ʁjɛʁ-la-tɛt-lə-pa-se-ʒwi (8 syllabes, jamais lpa-se) ; ils ne s'élident que devant une voyelle (« l'ami »). Règle 1.2 de `docs/scansion_rules.txt` et option `--no-dierese` du README mises à jour
+- `spec/accents_spec.rb` : 4 nouveaux exemples (espeak bouchonné, déterministe sans espeak-ng) — 143 exemples au total, 0 échec
+- README : nouvelle section « Accents de phrase et accents secondaires » + structure mise à jour, et description d'introduction (README + `spec.description` du gemspec) mentionnant les accents ; commentaires d'en-tête d'`accents.rb` traduits en français
 
 ## 0.1.6 - 2026-11-22
 
-- nouveau paramètre `count_mute_e` : en mode contemporain (plain / `--no-dierese`), l'e muet n'est JAMAIS compté devant une consonne — « mes pères criaient dessous mes pieds » -> me-pɛʁ-kʁi-ɛ-dé-su-me-pje (8 syllabes, pɛʁ) ; « table ronde » -> tabl-ʁɔ̃d (2). En contexte classique (`dierese: true` / `:auto`), le comptage est inchangé (table ronde -> ta-blə-ʁɔ̃d, 3). La 1re passe de `:auto` garde le comptage classique (`count_mute_e: dierese != false`) pour ne pas tomber sur 10 et s'arrêter ; la passe de détection de contexte de `process_lines` aussi
-- bilan : aucun vers en contexte classique ne change (vérifié ligne à ligne sur chatiments.txt : 99 différences, toutes en contexte non classique — vers irréguliers de ~10-12 syllabes ramenés à leur compte contemporain) ; oupoco 12: 52697→52252, 11: 1637→805 (les 11 restants sont en contexte classique) ; chatiments 12: 4583→4521, 11: 160→67 ; racine 12: 23114→22806, 11: 787→425 ; replis ~ inchangés
-- 138 exemples RSpec, 0 échec (5 nouveaux exemples pour le mode contemporain, les specs classiques passent en `dierese: :auto`) ; `docs/scansion_rules.txt` (règles 1.2, 1.5), README et commentaires mis à jour
+- nouveau paramètre `count_mute_e` : en mode contemporain (plain / `--no-dierese`), l'e CADUC n'est jamais compté devant une consonne — « mes pères criaient dessous mes pieds » -> me-pɛʁ-kʁi-ɛ-dé-su-me-pje (8 syllabes, pɛʁ) ; « table ronde » -> tabl-ʁɔ̃d (2). En contexte classique (`dierese: true` / `:auto`), le comptage est inchangé (table ronde -> ta-blə-ʁɔ̃d, 3). La 1re passe de `:auto` garde le comptage classique (`count_mute_e: dierese != false`) pour ne pas tomber sur 10 et s'arrêter ; la passe de détection de contexte de `process_lines` aussi
+- bilan : aucun vers en contexte classique ne change (vérifié ligne à ligne sur chatiments.txt : 99 différences, toutes en contexte non classique — vers irréguliers de ~10-12 syllabes ramenés à leur compte contemporain) ; oupoco 12: 52697→52255, 11: 1637→806 ; chatiments 12: 4583→4524, 11: 160→72 ; racine 12: 23114→22872, 11: 787→429 ; replis ~ inchangés (les 11/13 restants sont en contexte classique)
+- 143 exemples RSpec, 0 échec (5 nouveaux exemples pour le mode contemporain, les specs classiques passent en `dierese: :auto`) ; `docs/scansion_rules.txt` (règles 1.2, 1.5), README et commentaires mis à jour
 
 ## 0.1.5 - 2026-11-22
 

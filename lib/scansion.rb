@@ -125,6 +125,12 @@ module Scansion
   # (les amis -> lɛzami, quand il -> kɑ̃til, grand ami -> gʁɑ̃tami...)
   LIAISON_FINAL = { "s" => "z", "z" => "s", "d" => "t", "g" => "k", "b" => "p" }.freeze
 
+  # Monosyllabes grammaticaux à « e fixe » (schwa stable, NON caduc) : jamais
+  # élidés devant une consonne, même en mode contemporain — « le passé » ->
+  # lə-pa-se (jamais lpa-se), « que me veux-tu » -> kə-mə-vø-ty. Ils ne
+  # s'élident que devant une voyelle (élision : « l'ami », « qu'amer »).
+  STABLE_SCHWA = %w[le de me te se que qu ne je ce].freeze
+
   # dévoisement final tel que le rend espeak-ng (Austerlitz -> ...lits)
   FINAL_DEVOICE = { "z" => "s", "d" => "t", "b" => "p", "g" => "k", "v" => "f" }.freeze
 
@@ -920,6 +926,12 @@ module Scansion
       CR_E_PRONOUNCED.any? { |w| word == w || word == "#{w}s" || word == "#{w}x" }
     end
 
+    # « e fixe » des monosyllabes grammaticaux (le, de, me, te, se, que, ne,
+    # je, ce) : schwa stable, jamais élidé devant une consonne.
+    def stable_schwa?(word)
+      STABLE_SCHWA.include?(word.to_s.downcase)
+    end
+
     # En contexte classique (dierese actif), le e final d'un mot en -Cre
     # (consonne + r + e : notre, vivre, âpre, spectre, meurtre, centre,
     # pauvre, ivre, ombre, sombre, décembre…) est COMPTÉ — no-tre, vi-vre,
@@ -1441,10 +1453,14 @@ module Scansion
           pairs.pop # élision devant une voyelle / un h muet (sauf pluriel -es/-eux : e prononcé)
         elsif paused[k] && !pronounced && !pause_e
           pairs.pop # devant une pause (, ; : ! ? …) ; pause_e : e compté (alexandrine)
-        elsif !dierese && !pause_e && !count_mute_e && !pronounced
-          # mode contemporain (--no-dierese) : l'e muet n'est JAMAIS compté
+        elsif !dierese && !pause_e && !count_mute_e && !pronounced &&
+              !stable_schwa?(w[:word])
+          # mode contemporain (--no-dierese) : l'e CADUC n'est jamais compté
           # devant une consonne (« mes pères criaient » -> pɛʁ, 8 syllabes) ;
-          # en contexte classique (dierese/:auto, pause_e) il reste compté
+          # en contexte classique (dierese/:auto, pause_e) il reste compté.
+          # Exception : le schwa des monosyllabes grammaticaux (le, de, me,
+          # te, se, que, ne, je, ce) est un « e fixe » — jamais élidé devant
+          # une consonne (« le passé » -> lə-pa-se, 8 syllabes et non 7)
           pairs.pop
         end
       end

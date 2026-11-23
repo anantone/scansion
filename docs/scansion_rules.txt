@@ -17,10 +17,16 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
 
 1.2  E muet final devant un mot à initiale consonantique : prononcé EN
      CONTEXTE CLASSIQUE (diérèse active, donc aussi en mode :auto), non
-     compté en mode contemporain (plain / --no-dierese).
+     compté en mode contemporain (plain / --no-dierese) pour un VRAI e caduc.
      « table ronde » -> ta-blə-ʁɔ̃d (3 syllabes, contexte classique) ;
      en contemporain -> tabl-ʁɔ̃d (2 syllabes) — « mes pères criaient
      dessous mes pieds » -> 8 syllabes (pɛʁ, le e de « pères » non compté).
+     EXCEPTION : le « e fixe » des monosyllabes grammaticaux (le, de, me,
+     te, se, que, ne, je, ce — prédicat stable_schwa?) est un schwa STABLE,
+     jamais élidé devant une consonne, même en contemporain :
+     « derrière la tête le passé jouit » -> dɛ-ʁjɛʁ-la-tɛt-lə-pa-se-ʒwi
+     (8 syllabes, jamais lpa-se). Ils ne s'élident que devant une voyelle
+     (élision : « l'ami », « qu'amer »).
 
 1.3  E muet final devant un mot à initiale vocalique (voyelle ou h muet) :
      élidé (non compté). « table orange » -> tablɔʁɑ̃ʒ.

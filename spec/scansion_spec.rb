@@ -88,6 +88,16 @@ RSpec.describe Scansion do
       expect(r.phones).to eq("me-pɛʁ-kʁi-ɛ-də-su-me-pje")
     end
 
+it "e fixe des monosyllabes grammaticaux : « le » n’est jamais élidé devant une consonne" do
+  stub_espeak("derrière la tête le passé jouit" => "dɛʁjɛʁlatɛtləpaseʒwi")
+  r = process("derrière la tête le passé jouit")
+  expect(r).to have_attributes(aligned: true, syllables: 8)
+  expect(r.phones).to eq("dɛ-ʁjɛʁ-la-tɛt-lə-pa-se-ʒwi")
+  expect(described_class.stable_schwa?("le")).to be true
+  expect(described_class.stable_schwa?("de")).to be true
+  expect(described_class.stable_schwa?("pères")).to be false
+end
+
     it "ne compte pas l'e muet en fin de vers" do
       stub_espeak("la table" => "latabl")
       r = process("la table")
@@ -458,9 +468,9 @@ RSpec.describe Scansion do
       stub_espeak("Toi qui, le front levé, te ruas dans le crime," =>
                   "twakiləfʁɔ̃ləvetəʁyadɑ̃ləkʁim")
       r = process("Toi qui, le front levé, te ruas dans le crime,")
-      # mode contemporain : les e muets de « le », « te », « le » ne sont pas comptés
-      expect(r).to have_attributes(dierese: 0, syllables: 8)
-      expect(r.phones).to eq("twa-ki-lfʁɔ̃-lə-ve-tʁya-dɑ̃-lkʁim")
+      # « le »/« te » ont un e fixe : jamais élidés devant une consonne (11)
+      expect(r).to have_attributes(dierese: 0, syllables: 11)
+      expect(r.phones).to eq("twa-ki-lə-fʁɔ̃-lə-ve-tə-ʁya-dɑ̃-lə-kʁim")
     end
 
     it "ne scinde pas le « ua » interne (nuage -> nyaʒ, 1 syllabe) même avec dierese: true" do
@@ -646,11 +656,11 @@ it "contexte classique : « sombre » compte son e final (sɔ̃-bʁə, 8 syllabe
   expect(r).to have_attributes(aligned: true, syllables: 8)
   expect(r.phones).to eq("o-sɔ̃-bʁə-mɛʁ-kə-mə-vø-ty")
 end
-it "mode contemporain : « sombre » reste 1 syllabe (sɔ̃bʁ, 5 syllabes : que/me perdent leur e)" do
+it "mode contemporain : « sombre » reste 1 syllabe (sɔ̃bʁ, 7 syllabes ; « que »/« me » gardent leur e fixe)" do
   stub_espeak("O sombre mer, que me veux-tu ?" => "osɔ̃bʁmɛʁkəməvøty")
   r = process("O sombre mer, que me veux-tu ?")
-  expect(r).to have_attributes(aligned: true, syllables: 5)
-  expect(r.phones).to eq("o-sɔ̃bʁ-mɛʁ-kmvø-ty")
+  expect(r).to have_attributes(aligned: true, syllables: 7)
+  expect(r.phones).to eq("o-sɔ̃bʁ-mɛʁ-kə-mə-vø-ty")
 end
 it "contexte classique : « notre » -> no-tʁə (6 syllabes)" do
   stub_espeak("Qui vole à Notre-Dame." => "kivɔlanotʁdam")
@@ -670,11 +680,11 @@ it "« ivre, » devant une pause garde son e compté en classique (i-vʁə, 12 s
   expect(r).to have_attributes(aligned: true, syllables: 12)
   expect(r.phones).to eq("lə-sɔl-da-ge-fe-ʁɔs-i-vʁə-kɔ̃-plis-ɔb-skyʁ")
 end
-it "mode contemporain : « ivre, » -> ivʁ devant la virgule, « le » élidé (10 syllabes)" do
+it "mode contemporain : « ivre, » -> ivʁ devant la virgule, « le » garde son e fixe (11 syllabes)" do
   stub_espeak("Le soldat, gai, féroce, ivre, complice obscur," => "ləsɔldagefeʁɔsivʁkɔ̃plisɔbskyʁ")
   r = process("Le soldat, gai, féroce, ivre, complice obscur,")
-  expect(r).to have_attributes(aligned: true, syllables: 10)
-  expect(r.phones).to eq("lsɔl-da-ge-fe-ʁɔs-ivʁ-kɔ̃-plis-ɔb-skyʁ")
+  expect(r).to have_attributes(aligned: true, syllables: 11)
+  expect(r.phones).to eq("lə-sɔl-da-ge-fe-ʁɔs-ivʁ-kɔ̃-plis-ɔb-skyʁ")
 end
 it "CR_E_PRONOUNCED devant une pause : le e restauré de « astre » n'est pas élagué (as-tʁə)" do
   stub_espeak("l'astre, brillant" => "lastʁbʁijɑ̃")
@@ -887,11 +897,11 @@ end
       expect(r.phones).to eq("di-tə-sɑ̃-la-ky-ze-də-ʃɛʁ-ʃeʁ-œ̃-nɛ-sklav")
     end
 
-    it "mode plain (--no-dierese) : la virgule silencie le e muet, et aucun e muet n'est compté (10 syllabes)" do
+    it "mode plain (--no-dierese) : la virgule silencie le e caduc, « de » garde son e fixe (11 syllabes)" do
       stub_espeak("Dites, sans l’accuser de chercher un esclave," => "ditsɑ̃lakyzedəʃɛʁʃeœ̃nɛsklav")
       r = process("Dites, sans l’accuser de chercher un esclave,")
-      expect(r).to have_attributes(aligned: true, syllables: 10)
-      expect(r.phones).to eq("dit-sɑ̃-la-ky-ze" + "-dʃɛʁ-ʃeʁ-œ̃-nɛ-sklav")
+      expect(r).to have_attributes(aligned: true, syllables: 11)
+      expect(r.phones).to eq("dit-sɑ̃-la-ky-ze" + "-də-ʃɛʁ-ʃeʁ-œ̃-nɛ-sklav")
     end
 
     it ":auto — un octosyllabe n’est PAS forcé à 12 (« Ô lâche ! Et peut-être demain, » -> 8)" do
@@ -947,11 +957,11 @@ end
       expect(r.phones).to eq("bʁi-ze-mu-ɛ-tə-də-su-fʁɑ̃s")
     end
 
-    it "mode contemporain : les e muets de « muette » et « de » ne sont pas comptés (6)" do
+    it "mode contemporain : e caduc de « muette » non compté, mais « de » garde son e fixe (7)" do
       stub_espeak("brisée, muette de souffrance" => "bʁizemyɛtdəsufʁɑ̃s")
       r = process("brisée, muette de souffrance")
-      expect(r).to have_attributes(aligned: true, syllables: 6)
-      expect(r.phones).to eq("bʁi-ze-mu-ɛt-dsu-fʁɑ̃s")
+      expect(r).to have_attributes(aligned: true, syllables: 7)
+      expect(r.phones).to eq("bʁi-ze-mu-ɛt-də-su-fʁɑ̃s")
     end
 
     it "« muet » seul en fin de vers -> mu-ɛ (2 syllabes, e final non compté)" do
