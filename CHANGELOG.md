@@ -1,5 +1,11 @@
 # Journal des modifications
 
+## 1.0.0 - 2026-11-23
+
+- **Majeur** : `accents.rb` rejoint le gem (`lib/scansion/accents.rb`, `require "scansion/accents"`) — l'ancien outil externe `accent_de_phrase.rb` est renommé et déplacé. Le module `AccentDePhrase` devient **`Scansion::Accents`** (changement cassant : mettre à jour les `require` et les appels). Deux couches d'accent : accent de phrase ˈ par groupe rythmique (`Analysis#accents`, `#render`) et accent secondaire de mot ˌ (`Analysis#word_accents`) ; l'alignement mot -> syllabe consomme `Result#word_spans`
+- `spec/accents_spec.rb` : 4 nouveaux exemples (espeak bouchonné, déterministe sans espeak-ng) — 142 exemples au total, 0 échec
+- README : nouvelle section « Accents de phrase et accents secondaires » + structure mise à jour ; commentaires d'en-tête d'`accents.rb` traduits en français
+
 ## 0.1.6 - 2026-11-22
 
 - nouveau paramètre `count_mute_e` : en mode contemporain (plain / `--no-dierese`), l'e muet n'est JAMAIS compté devant une consonne — « mes pères criaient dessous mes pieds » -> me-pɛʁ-kʁi-ɛ-dé-su-me-pje (8 syllabes, pɛʁ) ; « table ronde » -> tabl-ʁɔ̃d (2). En contexte classique (`dierese: true` / `:auto`), le comptage est inchangé (table ronde -> ta-blə-ʁɔ̃d, 3). La 1re passe de `:auto` garde le comptage classique (`count_mute_e: dierese != false`) pour ne pas tomber sur 10 et s'arrêter ; la passe de détection de contexte de `process_lines` aussi

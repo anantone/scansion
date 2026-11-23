@@ -69,13 +69,39 @@ Utilisation comme bibliothèque
 ```ruby
 require "scansion"
 
-Scansion::VERSION                      # => "0.1.0"
+Scansion::VERSION                      # => "1.0.0"
 res = Scansion.process_line("la belle table ronde")
 res.phones                             # => "la-bɛl-ta-blə-ʁɔ̃d"
 res.syllables                          # => 4
 res.aligned                            # => true
 
 Scansion.process_lines(lines, dierese: :auto)
+```
+
+Accents de phrase et accents secondaires (depuis la 1.0.0)
+----------------------------------------------------------------
+
+`require "scansion/accents"` ajoute `Scansion::Accents`, qui calcule deux
+couches d'accentuation sur une scansion (règles de Delattre) :
+
+- **accent de phrase** (ˈ) : un par groupe rythmique (syntagme), posé sur la
+  dernière syllabe accentuable du groupe — l'accent du dernier groupe est la rime ;
+- **accent secondaire de mot** (ˌ) : un par mot plein, sur sa propre dernière
+  syllabe accentuable.
+
+Une syllabe au noyau schwa (e caduc restauré) ne porte jamais l'accent.
+L'alignement mot -> syllabe consomme `Scansion::Result#word_spans` (calculé
+par le gem lui-même, donc sans dérive).
+
+```ruby
+require "scansion/accents"
+
+a = Scansion::Accents.analyze_line("mes pères criaient dessous mes pieds")
+a.render        # => "me-ˌpɛʁ-kʁi-ˈɛ |-də-su-me-ˈpje   (8 syll.)"
+a.accents       # => [3, 7]   (indices 0-based : syllabes 4 et 8, accents de phrase)
+a.word_accents  # => [1, 3, 7] (accents secondaires des mots pères, criaient, pieds)
+
+Scansion::Accents.analyze_lines(File.readlines("corpus.txt", chomp: true), dierese: :auto)
 ```
 
 
@@ -96,7 +122,8 @@ Structure
 ```
 ├── bin/scansion              exécutable (scansion [options] [FILE|-])
 ├── lib/scansion.rb           bibliothèque + point d'entrée CLI Scansion.main
+├── lib/scansion/accents.rb   Scansion::Accents — accents de phrase (ˈ) et de mot (ˌ)
 ├── lib/scansion/version.rb   Scansion::VERSION
-├── spec/                     suite RSpec
+├── spec/                     suite RSpec (scansion_spec.rb + accents_spec.rb)
 └── docs/scansion_rules.txt   règles de scansion avec exemples travaillés
 ```

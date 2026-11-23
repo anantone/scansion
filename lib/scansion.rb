@@ -1463,7 +1463,7 @@ module Scansion
       end
 
       # spans mot -> indices de syllabes (pour les outils en aval, ex.
-      # accent_de_phrase) : même règle de comptage que count_syllables
+      # scansion/accents) : même règle de comptage que count_syllables
       # (un glide y/ɥ suivi d'une voyelle n'est pas un noyau, sauf si la
       # voyelle ouvre le mot suivant)
       word_spans = []

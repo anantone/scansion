@@ -1,0 +1,464 @@
+# frozen_string_literal: true
+#
+# accents.rb — accents de phrase (groupes rythmiques, ˈ) et accents
+# secondaires de mots (ˌ), par-dessus le gem scansion et phonemizer_ffi.
+#
+# Modèle (règles de Delattre, encodées) :
+#   1. Deux couches d'accent : chaque GROUPE rythmique porte un accent (ˈ,
+#      « accent de phrase ») sur sa dernière syllabe accentuable ; et chaque
+#      MOT plein porte un accent interne (ˌ, « accent secondaire ») sur sa
+#      propre dernière syllabe accentuable.
+#   2. Une syllabe au noyau schwa (e caduc restauré, /ə/) — ou un simple
+#      glide — ne porte jamais l'accent : il retombe sur la syllabe
+#      accentuable précédente.
+#   3. Frontières de groupe (syntagmes) : avant une conjonction, un verbe
+#      auxiliaire, une préposition (sauf « de + nom nu » : « peau d'ange »),
+#      ou un déterminant ouvrant un nouveau syntagme (sauf si le mot
+#      précédent est fonctionnel ou une préposition : « à partir du col »,
+#      « que le fond ») ; plus après chaque ponctuation et en fin de vers.
+#      Un accent par groupe, sur sa dernière syllabe accentuable ; l'accent
+#      du dernier groupe est la rime. Si aucun groupe ne se termine avant la
+#      césure (6//6, 4//4), une frontière y est forcée.
+#
+# L'alignement mot -> syllabe consomme Scansion::Result#word_spans (calculé
+# par le gem lui-même, donc sans dérive) ; le matching IPA sur mot isolé
+# n'est gardé qu'en repli pour les résultats non alignés (~), sans spans.
+#
+# Usage :
+#   require "scansion/accents"
+#   a = Scansion::Accents.analyze_line("Au coin du feu, dans la langueur des rêveries!")
+#   puts a.render        # syllabes, frontières de groupe (|) et accents (ˈ/ˌ)
+#   a.accents            # => indices 0-based des syllabes accentuées (phrase)
+#   a.word_accents       # => indices 0-based des accents secondaires (mots)
+#   a.warnings           # problèmes d'alignement / validation
+#
+# Corpus :
+#   Scansion::Accents.analyze_lines(File.readlines("corpus.txt", chomp: true))
+
+require_relative "../scansion"
+require "phonemizer_ffi"
+
+module Scansion
+  module Accents
+    SCHWA = "ə"
+    GLIDES = "yɥ"
+
+    # Characters treated as vocalic when looking for a syllable nucleus
+    # (incl. nasal vowels, which espeak writes as vowel + combining tilde U+0303).
+    VOWELS = "aeiouyɑɛɔøœəãẽĩõũ\u0303"
+
+    PUNCT_RE = /\A[,;:.!?…—–«»]\z/
+
+    # Classes de mots fonctionnels (sans accent propre). Un groupe rythmique se
+    # termine à la frontière devant certains d'entre eux (voir boundary_before?).
+    PREPS = %w[à au aux dans en par pour sur sous vers chez sans contre entre de d
+               dessous dessus dedans dehors avant après depuis jusqu jusque malgré selon].to_h { |w| [w, true] }.freeze
+    DETS  = %w[le la les l un une du des au ce cet cette ces mon ton son ma ta mes tes ses
+               notre votre leur nos vos leurs quel quels quelle quelles
+               tout tous toute toutes].to_h { |w| [w, true] }.freeze
+    CONJS = %w[et ou mais donc or ni car que qu si].to_h { |w| [w, true] }.freeze
+    AUX   = %w[suis es est sommes êtes sont étais était étaient été
+               ai as a avons avez ont avais avait avaient eu eut].to_h { |w| [w, true] }.freeze
+    PRONS = %w[je j tu t il elle on nous vous ils elles me m te se y en leur leurs ne pas plus jamais rien qui quoi dont où lequel laquelle lesquels lesquelles].to_h { |w| [w, true] }.freeze
+    # pronoms indéfinis seuls : ils ouvrent un groupe (« qu'amer » | « aucun s'efface »)
+    INDEF = %w[aucun aucune aucuns aucunes quelques plusieurs tout tous toute toutes
+               autre autres même mêmes chacun chacune chaque].to_h { |w| [w, true] }.freeze
+    FUNCTION_WORDS = PREPS.merge(DETS).merge(CONJS).merge(AUX).merge(PRONS).merge(INDEF).freeze
+
+    # Word token: Unicode word chars plus apostrophes (elisions: l'amour) and
+    # internal hyphens (porte-parapluie).
+    SCAN_RE  = /[\p{Word}'’-]+|[,;:.!?…—–«»"]/
+
+    # keyword_init structs take keyword arguments only.
+    Token = Struct.new(:surface, :kind, :first, :last, keyword_init: true) # kind: :word | :punct
+    Group = Struct.new(:tokens, :accent)
+
+    Analysis = Struct.new(:text, :syllables, :tokens, :groups, :word_accents, :warnings, keyword_init: true) do
+      def accents # accents de phrase (fin de chaque groupe rythmique)
+        groups.filter_map(&:accent)
+      end
+
+      def render
+        syllables.each_with_index.map { |s, i|
+          if groups.any? { |g| g.accent == i }
+            marked = "ˈ#{s}" # accent de phrase (primaire)
+          elsif word_accents.to_a.include?(i)
+            marked = "ˌ#{s}" # accent interne du mot (secondaire)
+          else
+            marked = s
+          end
+          boundary = groups.any? { |g| g.tokens.last && g.tokens.last.last == i }
+          boundary ? "#{marked} |" : marked
+        }.join("-").sub(/ \|$/, "")
+      end
+    end
+
+    class << self
+      def analyze_lines(lines, dierese: :auto)
+        results = begin
+          Scansion.process_lines(lines, dierese: dierese)
+        rescue StandardError
+          lines.map { |l| Scansion.process_line(l, dierese: dierese) }
+        end
+        results.zip(lines).map { |res, text| analyze_result(res, text) }
+      end
+
+      def analyze_line(text, dierese: :auto)
+        analyze_result(Scansion.process_line(text, dierese: dierese), text)
+      end
+
+      # un mot est fonctionnel si TOUTES ses parties le sont (« n\u2019est » -> n + est)
+      def head_of(tok)
+        tok.kind == :word ? pieces(tok).first.to_s.downcase : nil
+      end
+
+      # Une frontière de groupe AVANT tokens[i] (mot) :
+      #  - conjonction (que, et, ou, mais…)                          -> oui
+      #  - verbe auxiliaire (n'est, est, a…)                           -> oui
+      #  - préposition, sauf « de/d' + nom nu » (complément : « peau d'ange ») -> oui
+      #  - déterminant qui OUVRE un nouveau syntagme, sauf si le mot
+      #    précédent est fonctionnel ou une préposition (PP : « à partir du col »)
+      def boundary_before?(tokens, i)
+        tok = tokens[i]
+        return false unless tok.kind == :word
+        return false if i.zero?
+        pcs = pieces(tok)
+        head = pcs.first.to_s.downcase
+        last = pcs.last.to_s.downcase
+        nxt = tokens[i + 1]
+        nxt_head = nxt ? head_of(nxt) : nil
+        prev = tokens[i - 1]
+        prev_head = prev ? head_of(prev) : nil
+        prev2 = i >= 2 ? tokens[i - 2] : nil # pas d'index négatif !
+        prev2_head = prev2 ? head_of(prev2) : nil
+
+        return true if pcs.size == 1 && INDEF.key?(head) # aucun, tout, autre… seuls
+        return true if CONJS.key?(head) || CONJS.key?(last)
+        return true if AUX.key?(last) # n'est, est, a…
+        if PREPS.key?(head)
+          # « d'ange » (de + nom nu soudé) ou « de ange » : pas de frontière
+          return false if %w[de d].include?(head) && pcs.size > 1
+          if %w[de d].include?(head) && nxt_head && !DETS.key?(nxt_head)
+            return false
+          end
+          return true
+        end
+        if DETS.key?(head)
+          # le déterminant appartient au syntagme précédent (PP « à partir du col »,
+          # « que le fond », « sans l'accuser ») si le mot d'avant est fonctionnel
+          # ou une préposition
+          return false if prev_head && (FUNCTION_WORDS.key?(prev_head) || PREPS.key?(prev2_head.to_s))
+          return true
+        end
+        false
+      end
+
+      private
+
+      def analyze_result(res, text)
+        warns = []
+        if res.respond_to?(:aligned) && !res.aligned
+          warns << "scansion could not align: res.aligned is false"
+        end
+
+        # sanitize: un backend peut émettre des apostrophes ou autres signes
+        # de ponctuation dans l"IPA — on ne garde que lettres/marques IPA
+        syls = res.phones.split("-").map { |s| s.strip.gsub(/[[:punct:]]/u, "") }.reject(&:empty?)
+        # Sanity guard: phone segments should be 1:1 with the counted syllables
+        # (CLI example: "o-kwɛ̃-dy-fø-dɑ̃-la-lɑ̃-gœʁ-de-ʁɛ-və-ʁi" = 12/12).
+        if res.respond_to?(:syllables) && res.syllables != syls.size
+          warns << "syllable count (#{res.syllables}) != phone segments (#{syls.size}); alignment may drift"
+        end
+
+        # tokenize the NORMALIZED text: its word pieces then line up 1:1 with
+        # Scansion.words_of / Result#word_spans
+        tokens = tokenize(Scansion.normalize_input(text))
+        align_words(res, tokens, syls, warns)
+        groups = merge_function_groups(split_caesura(build_groups(tokens), syls))
+        groups.each { |g| g.accent = place_accent(g, syls) }
+        wacc = word_accents(tokens, syls)
+
+        analysis = Analysis.new(text: text, syllables: syls, tokens: tokens,
+                                groups: groups, word_accents: wacc, warnings: warns)
+        analysis.warnings.concat(validate(analysis))
+        analysis
+      end
+
+      # ---- tokenization -------------------------------------------------------
+
+      def tokenize(text)
+        text.scan(SCAN_RE).map do |m|
+          kind = m.match?(PUNCT_RE) ? :punct : :word
+          Token.new(surface: m, kind: kind)
+        end
+      end
+
+      # pieces of a word token, split exactly like Scansion.words_of
+      # (apostrophes and hyphens are separators: "l'accuser" -> ["l", "accuser"])
+      def pieces(tok)
+        tok.surface.split(/['’-]/).reject(&:empty?)
+      end
+
+      # ---- token <-> syllable alignment -----------------------------------------
+      #
+      # Preferred path: Result#word_spans, computed by scansion itself while
+      # aligning letters to phones — exact by construction, no extra espeak call.
+      #
+      # Fallback (results without spans, e.g. espeak-raw fallbacks): phonemize
+      # each distinct word in isolation, then greedily match its IPA
+      # (schwa-stripped) against consecutive line syllables. Stripping ə absorbs
+      # the main source of noise between isolated and in-line phonemization: e
+      # caduc restored by scansion in context but absent in the isolated word
+      # (and occasionally the reverse). Words that cannot be matched fall back to
+      # a proportional split of the remaining syllables and are reported.
+      #
+      # Note: phonemizer_ffi is not thread-safe (global libespeak-ng state) —
+      # wrap corpus-wide calls in a Mutex if you parallelize elsewhere.
+
+      def align_words(res, tokens, syls, warns)
+        return if syls.empty?
+        words = tokens.select { |t| t.kind == :word }
+        return if words.empty?
+
+        spans = res.respond_to?(:word_spans) ? res.word_spans : nil
+        if spans && spans.size == words.sum { |t| pieces(t).size }
+          si = 0
+          words.each do |tok|
+            first = nil
+            last = nil
+            pieces(tok).each do
+              sp = spans[si]
+              si += 1
+              next unless sp && sp[:last] >= sp[:first]
+              first = sp[:first] if first.nil? || sp[:first] < first
+              last = sp[:last] if last.nil? || sp[:last] > last
+            end
+            tok.first = first
+            tok.last = last
+          end
+          return
+        end
+
+        align_words_ipa(words, syls, warns)
+      end
+
+      def align_words_ipa(words, syls, warns)
+        uniq = words.map { |t| t.surface.downcase }.uniq
+        ipa_list = Phonemizer.phonemize(uniq, language: "fr-fr")
+        ipa_list = [ipa_list] if ipa_list.is_a?(String) # single-word input
+        ipa = uniq.zip(ipa_list).to_h
+
+        pos = 0
+        unmatched = []
+        words.each_with_index do |tok, wi|
+          target = norm(ipa[tok.surface.downcase])
+          start  = pos
+          rest_words = words.size - wi          # this word + following words
+          acc = ""
+
+          if target.empty? # word that phonemizes to nothing (e.g. lone mute e)
+            pos += 1 unless syls.size - pos - 1 < rest_words - 1
+          else
+            while pos < syls.size && (syls.size - pos - 1) >= rest_words - 1
+              candidate = acc + norm(syls[pos])
+              break unless target.start_with?(candidate)
+
+              acc = candidate
+              pos += 1
+              break if acc == target
+            end
+          end
+
+          if pos == start || (!target.empty? && acc != target)
+            # no full match: share the remaining syllables proportionally
+            share = [[(syls.size - pos).fdiv(rest_words).ceil, 1].max, syls.size - pos].min
+            pos += share
+            unmatched << tok.surface
+          end
+          tok.first = start
+          tok.last  = pos - 1
+        end
+
+        warns << "unaligned words (proportional fallback): #{unmatched.uniq.join(', ')}" if unmatched.any?
+      end
+
+      def norm(str)
+        str.to_s.tr(SCHWA, "").tr("-", "")
+      end
+
+      # ---- grouping ------------------------------------------------------------
+
+      # Accent INTERNE de chaque mot plein : sa dernière syllabe à noyau
+      # accentué (on remonte au-dessus d'un éventuel schwa final — « muette »
+      # mu-ɛ-tə porte donc son accent sur le « ɛ »). Les mots fonctionnels
+      # n'ont pas d'accent propre.
+      def word_accents(tokens, syls)
+        acc = []
+        tokens.each do |t|
+          next unless t.kind == :word && t.first && t.last && t.last >= t.first
+          next if pieces(t).all? { |p| FUNCTION_WORDS.key?(p.downcase) } # mot fonctionnel
+          i = t.last
+          i -= 1 while i > t.first && !accent_bearing?(syls[i])
+          acc << i if accent_bearing?(syls[i])
+        end
+        acc.uniq
+      end
+
+      # Un groupe rythmique (syntagme) se termine à la frontière suivante :
+      # avant une conjonction, un auxiliaire, une préposition (sauf complément
+      # « de + nom nu »), ou un déterminant ouvrant un nouveau syntagme ; et
+      # après chaque signe de ponctuation. L'accent ira sur la dernière syllabe
+      # portant un noyau du groupe.
+      def build_groups(tokens)
+        groups = []
+        current = []
+        tokens.each_with_index do |tok, i|
+          if tok.kind == :punct
+            unless current.empty?
+              groups << Group.new(current, nil)
+              current = []
+            end
+          else
+            if !current.empty? && boundary_before?(tokens, i)
+              groups << Group.new(current, nil)
+              current = []
+            end
+            current << tok
+          end
+        end
+        groups << Group.new(current, nil) unless current.empty?
+        groups
+      end
+
+      # Un groupe composé UNIQUEMENT de mots fonctionnels (et, qui, sans, le…)
+      # ne porte pas d'accent : on le fusionne dans le groupe suivant.
+      def merge_function_groups(groups)
+        out = groups.dup
+        i = 0
+        while i < out.size - 1
+          if all_function?(out[i])
+            out[i + 1] = Group.new(out[i].tokens + out[i + 1].tokens, nil)
+            out.delete_at(i)
+          else
+            i += 1
+          end
+        end
+        out
+      end
+
+      def all_function?(group)
+        group.tokens.all? do |t|
+          t.kind == :punct || pieces(t).all? { |p| FUNCTION_WORDS.key?(p.downcase) }
+        end
+      end
+
+      # Force a group boundary at the caesura (6//6 alexandrine, 4//4 octosyllable)
+      # when no punctuation already marks it: the boundary falls on the last
+      # accent-bearing syllable at or before the caesura index (0-based).
+      def split_caesura(groups, syls)
+        n = syls.size
+        c = n == 12 ? 5 : (n == 8 ? 3 : nil)
+        return groups if c.nil?
+
+        s = c
+        s -= 1 while s > 0 && (syls[s].nil? || !accent_bearing?(syls[s]))
+        # une frontière de groupe (mot plein ou ponctuation) avant la cesure suffit
+        return groups if groups.any? { |g| g.tokens.last && g.tokens.last.last && g.tokens.last.last <= c }
+
+        out = []
+        groups.each do |g|
+          cover = g.tokens.index { |t| t.first && t.last && t.first <= s && t.last >= s }
+          cover = nil if cover == g.tokens.size - 1 && g.tokens.last.last == s
+          if cover && cover < g.tokens.size - 1
+            out << Group.new(g.tokens[0..cover], nil)
+            out << Group.new(g.tokens[(cover + 1)..], nil)
+          else
+            out << g
+          end
+        end
+        out
+      end
+
+      # ---- accent placement ----------------------------------------------------
+
+      # Rule 2: walk back from the group's last syllable to the first
+      # accent-bearing one. Group boundaries come from punctuation + caesura
+      # (rule 3).
+      def place_accent(group, syls)
+        return nil if group.tokens.empty?
+        lo = group.tokens.map(&:first).compact.min
+        hi = group.tokens.map(&:last).compact.max
+        return nil if lo.nil? || hi.nil?
+        lo = [lo, 0].max
+        hi = [hi, syls.size - 1].min
+        return nil if lo > hi
+        i = hi
+        i -= 1 while i > lo && !accent_bearing?(syls[i])
+        i
+      end
+
+      # noyau effectif d'une syllabe : ses caractères voyelles, mais un y/ɥ
+      # initial suivi d'une autre voyelle est un glide, pas un noyau
+      # ("yi" -> i ; "ty" (tu) -> y reste un noyau)
+      def nucleus(syl)
+        return "" if syl.nil?
+        chars = syl.chars.select { |c| VOWELS.include?(c) }
+        chars.shift if chars.size > 1 && GLIDES.include?(chars.first.to_s)
+        chars.join
+      end
+
+      # une syllabe porte l'accent si son noyau est une vraie voyelle
+      # (ni schwa, ni glide seul)
+      def accent_bearing?(syl)
+        n = nucleus(syl)
+        !n.empty? && n != SCHWA
+      end
+
+      # ---- validation ----------------------------------------------------------
+      #
+      # Alexandrines and octosyllables give a free gold standard: the last
+      # syllable (rhyme) must be the accent of the last group, and a group
+      # boundary near the caesura (syllable 6 of 12, 4 of 8) must carry that
+      # group's accent.
+
+      def validate(a)
+        w = []
+        n = a.syllables.size
+        return w unless [8, 12].include?(n)
+
+        last = a.groups.last
+        if last.nil? || last.accent != n - 1
+          w << "verse #{n}: rhyme (syllable #{n}) is not the last group's accent"
+        elsif !accent_bearing?(a.syllables[n - 1])
+          w << "verse #{n}: rhyme syllable has no accent-bearing nucleus — suspicious elision at line end"
+        end
+
+        c = n == 12 ? 5 : 3 # index 0-based de la cesure
+        unless a.groups.any? { |g| g.tokens.last && g.tokens.last.last && g.tokens.last.last <= c }
+          w << "verse #{n}: no group boundary at the caesura (syllable #{c + 1})"
+        end
+        w
+      end
+
+
+    end
+  end
+end
+
+# ---- démo -------------------------------------------------------------------
+
+if __FILE__ == $PROGRAM_NAME
+  corpus = [
+    "Au coin du feu, dans la langueur des rêveries!",
+    "Le jour n'est pas plus pur que le fond de ma nuit",
+    "Dites, sans l’accuser de chercher un esclave,",
+  ]
+  Scansion::Accents.analyze_lines(corpus).each do |a|
+    puts a.text
+    puts "  #{a.render}   (#{a.syllables.size} syll.)"
+    puts "  accents (phrase): #{a.accents.map { |i| i + 1 }.join(', ')}"
+    puts "  accents (mot):    #{a.word_accents.map { |i| i + 1 }.join(', ')}"
+    a.warnings.each { |w| puts "  ⚠ #{w}" }
+    puts
+  end
+end
