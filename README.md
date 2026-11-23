@@ -55,7 +55,7 @@ Au coin du feu, dans la langueur des rêveries!
 
 Options :
 
-- `--no-dierese` — désactiver la diérèse contextuelle (corpus contemporain)
+- `--no-dierese` — mode contemporain : pas de diérèse contextuelle, et l'e muet n'est jamais compté devant une consonne (« mes pères criaient dessous mes pieds » -> 8 syllabes) ; en contexte classique (`:auto`), il reste compté (« la table ronde » -> 3 syllabes)
 - `-s`, `--syllables` — n'afficher que le décompte des syllabes
 
 Les arguments peuvent être des chemins de fichiers, `-` (stdin), ou du texte de vers en ligne.

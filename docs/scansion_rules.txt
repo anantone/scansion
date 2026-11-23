@@ -15,8 +15,12 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
 1.1  E muet interne : prononcé (compté) devant une consonne.
      « redemande encore » -> ʁdəmɑ̃dɑ̃kɔʁ (le e de re-de-man-de restauré).
 
-1.2  E muet final devant un mot à initiale consonantique : prononcé.
-     « table ronde » -> tabləʁɔ̃d (3 syllabes).
+1.2  E muet final devant un mot à initiale consonantique : prononcé EN
+     CONTEXTE CLASSIQUE (diérèse active, donc aussi en mode :auto), non
+     compté en mode contemporain (plain / --no-dierese).
+     « table ronde » -> ta-blə-ʁɔ̃d (3 syllabes, contexte classique) ;
+     en contemporain -> tabl-ʁɔ̃d (2 syllabes) — « mes pères criaient
+     dessous mes pieds » -> 8 syllabes (pɛʁ, le e de « pères » non compté).
 
 1.3  E muet final devant un mot à initiale vocalique (voyelle ou h muet) :
      élidé (non compté). « table orange » -> tablɔʁɑ̃ʒ.
@@ -37,8 +41,9 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      -> di-tə-… (12). Jamais appliqué ailleurs : en vers irrégulier ou
      contemporain (--no-dierese), la pause silencie bien le e muet.
 
-1.5  E muet final devant un s muet : restauré.
-     « tables blanches » -> tabləblɑ̃ʃ.
+1.5  E muet final devant un s muet : restauré EN CONTEXTE CLASSIQUE.
+     « tables blanches » -> ta-blə-blɑ̃ʃ (3 syllabes, classique) ;
+     en contemporain -> tabl-blɑ̃ʃ (2 syllabes).
      Devant un mot à initiale vocalique, le e muet d’un PLURIEL en -es/-eux
      est prononcé avec liaison du s (plural_mute_e?) : « nouvelles amours »
      -> nu-vɛ-lə-za-muʁ (5), « des âmes hautaines » -> de-za-mə-o-tɛn ;

@@ -6,8 +6,11 @@
 #
 # Règles implémentées :
 #   * un e muet interne suivi d'une consonne est prononcé (compté)
-#   * un e muet final est prononcé devant un mot à initiale consonantique,
-#     élidé devant un mot à initiale vocalique (élision / h muet)
+#   * un e muet final est prononcé devant un mot à initiale consonantique
+#     EN CONTEXTE CLASSIQUE (diérèse active, donc aussi :auto) ; en mode
+#     contemporain (plain / --no-dierese) il n'est jamais compté devant une
+#     consonne (« mes pères criaient » -> pɛʁ). Élidé devant un mot à
+#     initiale vocalique (élision / h muet)
 #   * le e muet en fin de vers n'est pas compté, ni devant une pause
 #     graphique (, ; : ! ? … —) : rêche, -> ʁɛʃ
 #   * la terminaison -ent est prononcée devant une consonne ou un h aspiré
@@ -15,7 +18,8 @@
 #     de vers (avec liaison du t devant une voyelle : peuplent à -> pœplt-a) ;
 #     mais après une lettre voyelle (-uent, -ient) le e n'est jamais restauré
 #     (perpétuent le -> pɛʁpetylə, 8 syll.)
-#   * un e muet final devant un s muet est restauré (tables -> tablə)
+#   * un e muet final devant un s muet est restauré en contexte classique
+#     (tables blanches -> ta-blə-blɑ̃ʃ ; 2 syllabes en contemporain)
 #
 # La liste complète des règles, avec exemples travaillés, est dans
 # docs/scansion_rules.txt.
@@ -340,6 +344,19 @@ module Scansion
          (Scansion.vowel_letter?(word[i + 1]) ||
           (i >= 2 && word[i - 2].match?(VOWEL_LETTER) &&
            Scansion.e_muet_tail?(word, i)))
+        self.i += 1
+        self.prev_vowel_phone = true
+        return true
+      end
+
+      # « muet/muette/muets/muettes » : le « ue » vaut /y.ɛ/ (hiatus), même hors
+      # diérèse — mu-ɛ-tə fait 3 syllabes (et non myɛ-tə, 2). On émet le « u »
+      # comme noyau /y/ et on laisse le « ɛ » dans le segment courant.
+      if ch == "u" && word.start_with?("muet") && word[i + 1] == "e" &&
+         head[0].match?(/[yɥ]/) &&
+         head.each_char.count { |c| c.match?(VOWEL_PHONE) } >= 2
+        out << ["u", true]
+        segs[cursor] = head[1..] # garder le « ɛ », absorber le glide
         self.i += 1
         self.prev_vowel_phone = true
         return true
@@ -1063,7 +1080,9 @@ module Scansion
         next unless ph[0].match?(VOWEL_PHONE)
         # un glide y/ɥ suivi d'une voyelle n'est pas un noyau (même règle que
         # count_syllables) : il ne déclenche aucune coupure de syllabe
-        next if (ph[0] == "y" || ph[0] == "ɥ") &&
+        # glide seul (segment d"une seule lettre) suivi d"une voyelle : pas un noyau
+        # (un segment comme « yi » a son noyau dans la voyelle qui suit le glide)
+        next if ph.length == 1 && (ph[0] == "y" || ph[0] == "ɥ") &&
                 phones[k + 1] && phones[k + 1][0].match?(VOWEL_PHONE)
         if prev_vowel
           cut = nil
@@ -1277,7 +1296,11 @@ module Scansion
     # pour que chaque paire (ligne, options) ne soit scannée — et espeak-ng
     # relancé — qu'une fois.
     def process_line(line, dierese: false, cache: nil)
-      r = scan_line(line, dierese: false, cache: cache)
+      # en mode :auto, la 1re passe garde le comptage classique de l'e muet
+      # devant consonne (sinon elle pourrait tomber sur 10 et arrêter là) ;
+      # en mode plain direct (--no-dierese), l'e muet n'est pas compté.
+      r = scan_line(line, dierese: false, cache: cache,
+                    count_mute_e: dierese != false)
       if dierese == true
         r = scan_line(line, dierese: true, cache: cache)
       elsif dierese == :auto && r.aligned && !METER.include?(r.syllables)
@@ -1328,7 +1351,7 @@ module Scansion
       cache = {}
       counts = lines.map do |l|
         next nil if l.strip.empty?
-        r = scan_line(l, dierese: false, cache: cache)
+        r = scan_line(l, dierese: false, cache: cache, count_mute_e: true)
         r.aligned ? r.syllables : nil
       end
       lines.each_with_index.map do |l, i|
@@ -1344,21 +1367,23 @@ module Scansion
     # (voir process_lines), chaque paire (ligne, dierese)
     # n'est calculée — et espeak-ng relancé — qu'une fois.
     def scan_line(line, dierese: false, cache: nil, dierese_words: nil, cluster_words: nil,
-                  ent_words: nil, pause_e: false)
+                  ent_words: nil, pause_e: false, count_mute_e: false)
       if cache
-        key = [line, dierese, dierese_words, cluster_words, ent_words, pause_e]
+        key = [line, dierese, dierese_words, cluster_words, ent_words, pause_e, count_mute_e]
         return cache[key] if cache.key?(key)
         return cache[key] = compute_scan_line(line, dierese: dierese,
                                                dierese_words: dierese_words,
                                                cluster_words: cluster_words,
-                                               ent_words: ent_words, pause_e: pause_e)
+                                               ent_words: ent_words, pause_e: pause_e,
+                                               count_mute_e: count_mute_e)
       end
       compute_scan_line(line, dierese: dierese, dierese_words: dierese_words,
-                       cluster_words: cluster_words, ent_words: ent_words, pause_e: pause_e)
+                       cluster_words: cluster_words, ent_words: ent_words, pause_e: pause_e,
+                       count_mute_e: count_mute_e)
     end
 
     def compute_scan_line(line, dierese: false, dierese_words: nil, cluster_words: nil,
-                          ent_words: nil, pause_e: false)
+                          ent_words: nil, pause_e: false, count_mute_e: false)
       # normalise une fois pour que words_of et espeak voient les mêmes lettres
       clean = normalize_input(line)
       words = words_of(clean)
@@ -1416,6 +1441,11 @@ module Scansion
           pairs.pop # élision devant une voyelle / un h muet (sauf pluriel -es/-eux : e prononcé)
         elsif paused[k] && !pronounced && !pause_e
           pairs.pop # devant une pause (, ; : ! ? …) ; pause_e : e compté (alexandrine)
+        elsif !dierese && !pause_e && !count_mute_e && !pronounced
+          # mode contemporain (--no-dierese) : l'e muet n'est JAMAIS compté
+          # devant une consonne (« mes pères criaient » -> pɛʁ, 8 syllabes) ;
+          # en contexte classique (dierese/:auto, pause_e) il reste compté
+          pairs.pop
         end
       end
 
