@@ -12,4 +12,10 @@ RDoc::Task.new do |rdoc|
   rdoc.options << "--charset" << "utf-8"
 end
 
+# YARD — utilisé par rubydoc.info pour la documentation en ligne de la gem
+# (voir .yardopts). `rake yard` génère la doc dans doc/.
+require "yard"
+YARD::Rake::YardocTask.new(:yard)
+task doc: :yard
+
 task default: :spec

@@ -1,0 +1,5 @@
+--markup markdown
+--readme README.md
+--title "scansion"
+--charset utf-8
+lib/**/*.rb

@@ -3,6 +3,7 @@ scansion
 
 [![Gem Version](https://badge.fury.io/rb/scansion.svg)](https://badge.fury.io/rb/scansion)
 [![Licence MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Documentation](https://img.shields.io/badge/docs-rubydoc.info-blue.svg)](https://rubydoc.info/gems/scansion)
 
 Phonétise des vers français avec [espeak-ng](https://github.com/espeak-ng/espeak-ng), puis accentue et compte les syllabes.
 

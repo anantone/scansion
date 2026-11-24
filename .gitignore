@@ -2,3 +2,6 @@
 .DS_Store
 *.swp
 *.gem
+doc/
+.yardoc/
+html/

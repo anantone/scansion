@@ -18,7 +18,16 @@ Gem::Specification.new do |spec|
   spec.license       = 'MIT'
   spec.required_ruby_version = '>= 3.1'
 
-  spec.files         = Dir['lib/**/*.rb', 'docs/**/*.txt', 'README.md', 'LICENSE', 'CHANGELOG.md']
+  # Métadonnées lues notamment par rubydoc.info (qui génère la doc avec YARD
+  # à partir du dépôt source) et par rubygems.org.
+  spec.metadata      = {
+    'source_code_uri'   => 'https://github.com/anantone/scansion',
+    'changelog_uri'     => 'https://github.com/anantone/scansion/blob/main/CHANGELOG.md',
+    'bug_tracker_uri'   => 'https://github.com/anantone/scansion/issues',
+    'documentation_uri' => 'https://rubydoc.info/gems/scansion'
+  }
+
+  spec.files         = Dir['lib/**/*.rb', 'docs/**/*.txt', 'README.md', 'LICENSE', 'CHANGELOG.md', '.yardopts']
   spec.require_paths = ['lib']
 
   spec.add_dependency 'phonemizer_ffi', '~> 0.1'
@@ -26,4 +35,6 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'rake'
   spec.add_development_dependency 'rspec', '~> 3.13'
   spec.add_development_dependency 'rdoc'
+  spec.add_development_dependency 'yard'
+  spec.add_development_dependency 'kramdown' # provider markdown de YARD
 end

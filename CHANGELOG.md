@@ -1,5 +1,9 @@
 # Journal des modifications
 
+## 1.0.1 - 2026-11-24
+
+- support YARD pour rubydoc.info : fichier `.yardopts` (markup markdown, README en page d'accueil), tâche `rake yard` dans le Rakefile (alias `rake doc`, génère `doc/`) ; `yard` et `kramdown` ajoutés en dépendances de développement ; métadonnées du gemspec (`source_code_uri`, `changelog_uri`, `bug_tracker_uri`, `documentation_uri`) pointant vers le dépôt GitHub et `https://rubydoc.info/gems/scansion` ; lien « Documentation » ajouté au README. Changement documentaire uniquement
+
 ## 1.0.0 - 2026-11-23
 
 - **Majeur** : `accents.rb` rejoint le gem (`lib/scansion/accents.rb`, `require "scansion/accents"`) — l'ancien outil externe `accent_de_phrase.rb` est renommé et déplacé. Le module `AccentDePhrase` devient **`Scansion::Accents`** (changement cassant : mettre à jour les `require` et les appels). Deux couches d'accent : accent de phrase ˈ par groupe rythmique (`Analysis#accents`, `#render`) et accent secondaire de mot ˌ (`Analysis#word_accents`) ; l'alignement mot -> syllabe consomme `Result#word_spans`
