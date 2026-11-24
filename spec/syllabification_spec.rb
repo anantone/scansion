@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Tests RSpec pour lib/scansion.rb (le gem scansion).
+# Tests RSpec pour lib/scansion/syllabification.rb (cœur du gem scansion).
 #
 # La couche espeak-ng (Scansion.espeak) est bouchonnée partout, donc les
 # specs sont déterministes et tournent sans espeak-ng ni le gem phonemizer.
@@ -10,7 +10,7 @@
 # Note : Result#phones porte les séparateurs de syllabes (« - »), pas les
 # bouchons espeak bruts.
 
-require_relative "../lib/scansion"
+require_relative "../lib/scansion/syllabification"
 
 RSpec.describe Scansion do
   def stub_espeak(mapping)
@@ -972,12 +972,6 @@ end
     end
   end
 
-  describe "bibliothèque sans effets de bord" do
-    it "se require sans toucher à ARGV (Scansion.main n'est appelé que as script)" do
-      # si le CLI tournait au require, l OptionParser lèverait InvalidOption
-      expect(defined?(Scansion.main)).to eq("method")
-    end
-  end
 
   describe "backend phonemizer_ffi" do
     BACKEND_LINES = [
@@ -1015,6 +1009,37 @@ end
       skip "ffi/libespeak-ng indisponible" if backend_output(:ffi).nil?
       expect(described_class.espeak("la belle table")).to eq("labɛltabl")
       expect(described_class.instance_variable_get(:@ffi_unavailable)).to be_nil
+    end
+  end
+
+  describe "tirage contextuel vers le mètre (process_lines, mode plain)" do
+    it "compte l'e caduc d'un vers hors mètre quand les voisins sont unanimes (octosyllabe)" do
+      stub_espeak(
+        "les gouttes du dernier envol" => "legutdydɛʁnjeʁɑ̃vɔl",
+        "ciselant le cristal orange" => "sizlɑ̃ləkʁistaloʁɑ̃ʒ",
+        "du nœud de l’horizon" => "dynødəloʁizɔ̃",
+        "font un reflet sur ta peau d’ange" => "fɔ̃tœ̃ʁəflɛsyʁtapodɑ̃ʒ",
+        "duveteuse à partir du col" => "dyvtøzapaʁtiʁdykɔl"
+      )
+      lines = ["les gouttes du dernier envol", "ciselant le cristal orange",
+               "du nœud de l’horizon", "font un reflet sur ta peau d’ange",
+               "duveteuse à partir du col"]
+      res = described_class.process_lines(lines, dierese: false)
+      # compte plain = 7 (gouttes -> gut), tiré à 8 par le contexte octosyllabe
+      expect(res[0].syllables).to eq(8)
+      expect(res[0].phones).to eq("le-gu-tə-dy-dɛʁ-njeʁ-ɑ̃-vɔl")
+      expect(res[1].syllables).to eq(8)
+    end
+
+    it "ne tire pas un vers déjà sur un mètre (« mes pères criaient » -> 8, pɛʁ)" do
+      stub_espeak("mes pères criaient dessous mes pieds" => "mepɛʁkʁiɛdəsumepje",
+                  "dessous mon âme leur histoire" => "dəsumɔ̃namlœʁistwaʁ",
+                  "morte, je t’ai vite oubliée" => "mɔʁtʒətivublie")
+      lines = ["morte, je t’ai vite oubliée", "mes pères criaient dessous mes pieds",
+               "dessous mon âme leur histoire"]
+      res = described_class.process_lines(lines, dierese: false)
+      expect(res[1].syllables).to eq(8)
+      expect(res[1].phones).to eq("me-pɛʁ-kʁi-ɛ-də-su-me-pje")
     end
   end
 end

@@ -35,7 +35,7 @@
 # Corpus :
 #   Scansion::Accents.analyze_lines(File.readlines("corpus.txt", chomp: true))
 
-require_relative "../scansion"
+require_relative "syllabification"
 require "phonemizer_ffi"
 
 module Scansion
@@ -51,12 +51,15 @@ module Scansion
 
     # Classes de mots fonctionnels (sans accent propre). Un groupe rythmique se
     # termine à la frontière devant certains d'entre eux (voir boundary_before?).
-    PREPS = %w[à au aux dans en par pour sur sous vers chez sans contre entre de d
+    # « en » est retiré de PREPS : pronom (« en finir » ne ouvre pas de groupe),
+    # il reste dans PRONS. Comme préposition (« en ville ») il ne forcera plus
+    # de frontière — compromis accepté (le groupe verbal l'absorbe).
+    PREPS = %w[à au aux dans par pour sur sous vers chez sans contre entre de d
                dessous dessus dedans dehors avant après depuis jusqu jusque malgré selon].to_h { |w| [w, true] }.freeze
     DETS  = %w[le la les l un une du des au ce cet cette ces mon ton son ma ta mes tes ses
                notre votre leur nos vos leurs quel quels quelle quelles
                tout tous toute toutes].to_h { |w| [w, true] }.freeze
-    CONJS = %w[et ou mais donc or ni car que qu si].to_h { |w| [w, true] }.freeze
+    CONJS = %w[et ou mais donc or ni car que qu si quoique lorsque quand puisque].to_h { |w| [w, true] }.freeze
     AUX   = %w[suis es est sommes êtes sont étais était étaient été
                ai as a avons avez ont avais avait avaient eu eut].to_h { |w| [w, true] }.freeze
     PRONS = %w[je j tu t il elle on nous vous ils elles me m te se y en leur leurs ne pas plus jamais rien qui quoi dont où lequel laquelle lesquels lesquelles].to_h { |w| [w, true] }.freeze
@@ -107,9 +110,19 @@ module Scansion
         analyze_result(Scansion.process_line(text, dierese: dierese), text)
       end
 
-      # un mot est fonctionnel si TOUTES ses parties le sont (« n\u2019est » -> n + est)
+      # Fragments clitiques (l', j', n', c', d', m', t', s') : la « vraie » tête
+      # du mot est la première partie qui n'est pas un fragment — « c'est » ->
+      # est (auxiliaire, fonctionnel), « l'ombre » -> ombre (nom, PAS le
+      # déterminant « l »), « n'est » -> est.
+      CLITIC_FRAGMENTS = %w[c d j l m n s t].freeze
+
+      # tête du mot : première partie non clitique (« c'est » -> « est »,
+      # « l'ombre » -> « ombre ») ; un mot est fonctionnel si TOUTES ses
+      # parties le sont (« n'est » -> n + est)
       def head_of(tok)
-        tok.kind == :word ? pieces(tok).first.to_s.downcase : nil
+        return nil unless tok.kind == :word
+        pcs = pieces(tok).map { |p| p.downcase }
+        pcs.find { |p| !CLITIC_FRAGMENTS.include?(p) } || pcs.first
       end
 
       # Une frontière de groupe AVANT tokens[i] (mot) :
@@ -118,40 +131,73 @@ module Scansion
       #  - préposition, sauf « de/d' + nom nu » (complément : « peau d'ange ») -> oui
       #  - déterminant qui OUVRE un nouveau syntagme, sauf si le mot
       #    précédent est fonctionnel ou une préposition (PP : « à partir du col »)
-      def boundary_before?(tokens, i)
-        tok = tokens[i]
-        return false unless tok.kind == :word
-        return false if i.zero?
-        pcs = pieces(tok)
-        head = pcs.first.to_s.downcase
-        last = pcs.last.to_s.downcase
-        nxt = tokens[i + 1]
-        nxt_head = nxt ? head_of(nxt) : nil
-        prev = tokens[i - 1]
-        prev_head = prev ? head_of(prev) : nil
-        prev2 = i >= 2 ? tokens[i - 2] : nil # pas d'index négatif !
-        prev2_head = prev2 ? head_of(prev2) : nil
+# fin de verbe fini (heuristique sans POS) : -ont, -ez, -ons, -ais, -ait,
+# -ai/-as/-a, -is/-it/-ît, -e. Un déterminant après un verbe fini reste
+# dans le groupe verbal (« font un reflet », « fondra la mer ») ; après
+# un participe ou un nom, il ouvre un nouveau syntagme (« ciselant | le
+# cristal », « l'ombre | les escrocs »).
+FINITE_VERB_END = /(?:ont|ez|ons|ais|aient|ait|ai|as|a|is|it|ît)\z/.freeze
 
-        return true if pcs.size == 1 && INDEF.key?(head) # aucun, tout, autre… seuls
-        return true if CONJS.key?(head) || CONJS.key?(last)
-        return true if AUX.key?(last) # n'est, est, a…
-        if PREPS.key?(head)
-          # « d'ange » (de + nom nu soudé) ou « de ange » : pas de frontière
-          return false if %w[de d].include?(head) && pcs.size > 1
-          if %w[de d].include?(head) && nxt_head && !DETS.key?(nxt_head)
-            return false
-          end
-          return true
-        end
-        if DETS.key?(head)
-          # le déterminant appartient au syntagme précédent (PP « à partir du col »,
-          # « que le fond », « sans l'accuser ») si le mot d'avant est fonctionnel
-          # ou une préposition
-          return false if prev_head && (FUNCTION_WORDS.key?(prev_head) || PREPS.key?(prev2_head.to_s))
-          return true
-        end
-        false
-      end
+def finite_verb_head?(head)
+  !head.nil? && head.match?(FINITE_VERB_END)
+end
+
+def boundary_before?(tokens, i)
+  tok = tokens[i]
+  return false unless tok.kind == :word
+  return false if i.zero?
+  pcs = pieces(tok)
+  head = head_of(tok).to_s # saute les fragments clitiques (c'est -> est)
+  last = pcs.last.to_s.downcase
+  nxt = tokens[i + 1]
+  nxt_head = nxt ? head_of(nxt) : nil
+  prev = tokens[i - 1]
+  prev_head = prev ? head_of(prev) : nil
+  prev2 = i >= 2 ? tokens[i - 2] : nil # pas d'index négatif !
+  prev2_head = prev2 ? head_of(prev2) : nil
+
+  return true if pcs.size == 1 && INDEF.key?(head) # aucun, tout, autre… seuls
+  return true if CONJS.key?(head) || CONJS.key?(last)
+  return true if AUX.key?(last) # n'est, est, a…
+  # « en » : pronom devant un verbe à l'infinitif ou un nom (« en finir »
+  # ne coupe pas), préposition devant un déterminant (« en ta toison »
+  # coupe)
+  if head == "en"
+    return nxt_head && DETS.key?(nxt_head) ? true : false
+  end
+  if PREPS.key?(head)
+    # « d'ange » (de + nom nu soudé) ou « de ange » : pas de frontière
+    return false if %w[de d].include?(head) && pcs.size > 1
+    if %w[de d].include?(head) && nxt_head && !DETS.key?(nxt_head)
+      return false
+    end
+    return true
+  end
+  if DETS.key?(head)
+    # le déterminant appartient au syntagme précédent (« que le fond »,
+    # « sans l'accuser ») si le mot d'avant est fonctionnel
+    return false if prev_head && FUNCTION_WORDS.key?(prev_head)
+    # après un verbe fini, le COD reste dans le groupe verbal
+    # (« font un reflet », « fondra la mer »)
+    return false if prev.kind == :word && finite_verb_head?(prev_head)
+    # « du/des » (génitif) collé à une PP (« à partir du col ») : pas de
+    # frontière ; un article plein (« les escrocs » après « l’ombre ») ouvre
+    # bien un nouveau syntagme
+    return false if %w[du des].include?(head) && prev2_head && PREPS.key?(prev2_head.to_s)
+    return true
+  end
+  # participe passé / adjectif verbal en -é/-i/-u après un mot PLEIN :
+  # il ouvre un nouveau groupe (« la date | choisie »), sauf nom propre
+  # capitalisé (« le dogue Liberté »). Les verbes finis restent avec leur
+  # sujet (« mes pères criaient » -> un seul groupe).
+  if prev_head && prev.kind == :word && !FUNCTION_WORDS.key?(prev_head) &&
+     !finite_verb_head?(prev_head) &&
+     tok.surface[0] == tok.surface[0].downcase &&
+     head.match?(/(?:é|ée|és|ées|i|ie|is|ies|u|ue|us|ues|it|ît)s?\z/)
+    return true
+  end
+  false
+end
 
       private
 
@@ -176,7 +222,7 @@ module Scansion
         align_words(res, tokens, syls, warns)
         groups = merge_function_groups(split_caesura(build_groups(tokens), syls))
         groups.each { |g| g.accent = place_accent(g, syls) }
-        wacc = word_accents(tokens, syls)
+        wacc = word_accents(tokens, syls, caesura_index(syls.size))
 
         analysis = Analysis.new(text: text, syllables: syls, tokens: tokens,
                                 groups: groups, word_accents: wacc, warnings: warns)
@@ -292,13 +338,28 @@ module Scansion
       # accentué (on remonte au-dessus d'un éventuel schwa final — « muette »
       # mu-ɛ-tə porte donc son accent sur le « ɛ »). Les mots fonctionnels
       # n'ont pas d'accent propre.
-      def word_accents(tokens, syls)
+      # index de la césure (0-based) : 6//6 pour 12, 4//4 pour 8
+      def caesura_index(n)
+        n == 12 ? 5 : (n == 8 ? 3 : nil)
+      end
+
+      def word_accents(tokens, syls, caesura = nil)
         acc = []
         tokens.each do |t|
           next unless t.kind == :word && t.first && t.last && t.last >= t.first
           next if pieces(t).all? { |p| FUNCTION_WORDS.key?(p.downcase) } # mot fonctionnel
+          # les verbes finis ne portent pas d’accent secondaire propre (ˌ) :
+          # « font », « fondra » restent sans ˌ au milieu du groupe verbal
+          next if finite_verb_head?(head_of(t))
           i = t.last
           i -= 1 while i > t.first && !accent_bearing?(syls[i])
+          # ictus de césure : un mot coupé par la césure (4//4, 6//6) porte son
+          # accent secondaire SUR la syllabe de césure, plus fort que sa finale
+          # (« res|piration » -> ˌʁɛs et non ˌsjɔ̃)
+          if caesura && t.first <= caesura && caesura <= t.last &&
+             accent_bearing?(syls[caesura]) && caesura < i
+            i = caesura
+          end
           acc << i if accent_bearing?(syls[i])
         end
         acc.uniq

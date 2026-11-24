@@ -57,7 +57,7 @@ Au coin du feu, dans la langueur des rêveries!
 
 Options :
 
-- `--no-dierese` — mode contemporain : pas de diérèse contextuelle, et l'e caduc n'est jamais compté devant une consonne (« mes pères criaient dessous mes pieds » -> 8 syllabes) ; le « e fixe » des monosyllabes grammaticaux (le, de, me, te, se, que, ne, je, ce) reste toujours compté (« le passé » -> lə-pa-se) ; en contexte classique (`:auto`), tout e muet reste compté (« la table ronde » -> 3 syllabes)
+- `--no-dierese` — mode contemporain : pas de diérèse contextuelle, et l'e caduc n'est pas compté devant une consonne (« mes pères criaient dessous mes pieds » -> 8 syllabes) ; le « e fixe » des monosyllabes grammaticaux (le, de, me, te, se, que, ne, je, ce) reste toujours compté (« le passé » -> lə-pa-se). Exception : tirage contextuel — si les vers voisins sont unanimes sur un mètre (6/8/10/12), un vers hors mètre y est tiré en comptant l'e caduc (« les gouttes du dernier envol » -> 8 dans un poème d'octosyllabes). En contexte classique (`:auto`), tout e muet reste compté (« la table ronde » -> 3 syllabes)
 - `-s`, `--syllables` — n'afficher que le décompte des syllabes
 
 Les arguments peuvent être des chemins de fichiers, `-` (stdin), ou du texte de vers en ligne.
@@ -122,10 +122,17 @@ Structure
 ----------------------------------------------------------------
 
 ```
-├── bin/scansion              exécutable (scansion [options] [FILE|-])
-├── lib/scansion.rb           bibliothèque + point d'entrée CLI Scansion.main
-├── lib/scansion/accents.rb   Scansion::Accents — accents de phrase (ˈ) et de mot (ˌ)
-├── lib/scansion/version.rb   Scansion::VERSION
-├── spec/                     suite RSpec (scansion_spec.rb + accents_spec.rb)
-└── docs/scansion_rules.txt   règles de scansion avec exemples travaillés
+├── bin/scansion                  exécutable (scansion [options] [FILE|-])
+├── lib/scansion.rb               point d'entrée du gem (require "scansion")
+├── lib/scansion/syllabification.rb  cœur : alignement + e muet + compte des syllabes
+├── lib/scansion/accents.rb       Scansion::Accents — accents de phrase (ˈ) et de mot (ˌ)
+├── lib/scansion/cli.rb           Scansion.main (ligne de commande)
+├── lib/scansion/version.rb       Scansion::VERSION
+├── spec/                         suite RSpec (syllabification_spec.rb, accents_spec.rb, cli_spec.rb)
+└── docs/scansion_rules.txt       règles de scansion avec exemples travaillés
 ```
+
+`require "scansion"` charge tout le gem sans effet de bord ; on peut aussi ne
+charger que le cœur (`require "scansion/syllabification"`, sans charger
+`phonemizer_ffi` au require) ou seulement les accents
+(`require "scansion/accents"`).
