@@ -3,7 +3,7 @@
 #
 # scansion.rb — point d'entrée du gem scansion : phonétise des vers français
 # (espeak-ng) en restaurant le e muet selon les règles de la scansion
-# classique, marque les frontières de syllabes et compte les syllabes.
+# classique, accentue et compte les syllabes.
 #
 # Le gem est organisé en plusieurs fichiers sous lib/scansion/ :
 #   syllabification.rb   cœur : alignement + restauration du e muet + compte

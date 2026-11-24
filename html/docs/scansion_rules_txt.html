@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>scansion_rules - RDoc Documentation</title>
+
+
+  <meta name="keywords" content="ruby,documentation,scansion_rules">
+  <meta
+    name="description"
+    content="scansion_rules: RÈGLES APPLIQUÉES DANS scansion. Le script phonétise chaque vers avec espeak-ng (API --ipa), puis aligne les lettres orthographiques sur les segments "
+  >
+
+
+
+
+<!-- Open Graph / Facebook -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="scansion_rules - RDoc Documentation">
+
+
+
+    <meta property="og:description" content="RÈGLES APPLIQUÉES DANS scansion. Le script phonétise chaque vers avec espeak-ng (API --ipa), puis aligne les lettres orthographiques sur les segments ">
+
+
+
+
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="scansion_rules - RDoc Documentation">
+
+
+
+    <meta name="twitter:description" content="RÈGLES APPLIQUÉES DANS scansion. Le script phonétise chaque vers avec espeak-ng (API --ipa), puis aligne les lettres orthographiques sur les segments ">
+
+
+
+<script type="text/javascript">
+  var rdoc_rel_prefix = "../";
+  var index_rel_prefix = "../";
+</script>
+
+<script
+  src="../js/theme-toggle.js?v=8.1.0"
+></script>
+
+<script
+  src="../js/search_navigation.js?v=8.1.0"
+  defer
+></script>
+
+<script
+  src="../js/search_data.js?v=8.1.0"
+  defer
+></script>
+
+<script
+  src="../js/search_ranker.js?v=8.1.0"
+  defer
+></script>
+
+<script
+  src="../js/search_controller.js?v=8.1.0"
+  defer
+></script>
+
+<script
+  src="../js/c_highlighter.js?v=8.1.0"
+  defer
+></script>
+
+<script
+  src="../js/bash_highlighter.js?v=8.1.0"
+  defer
+></script>
+
+<script
+  src="../js/aliki.js?v=8.1.0"
+  defer
+></script>
+
+<link
+  href="../css/rdoc.css?v=8.1.0"
+  rel="stylesheet"
+>
+
+
+
+
+<body role="document" class="file has-toc">
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <!-- Chevron (right arrow) - used for expand/collapse -->
+  <symbol
+    id="icon-chevron"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <polyline points="9 18 15 12 9 6"></polyline>
+  </symbol>
+
+  <!-- File/Document - Pages section -->
+  <symbol
+    id="icon-file"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path
+      d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"
+    ></path>
+
+    <polyline points="14 2 14 8 20 8"></polyline>
+  </symbol>
+
+  <!-- Layers/Stack - Classes and Modules section -->
+  <symbol
+    id="icon-layers"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+    <polyline points="2 17 12 22 22 17"></polyline>
+    <polyline points="2 12 12 17 22 12"></polyline>
+  </symbol>
+
+  <!-- Curly braces with C - Class Methods section -->
+  <symbol
+    id="icon-class-methods"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M6 3C3.5 3 2 4.5 2 7v3c0 1.5-1 2-1 2s1 .5 1 2v5c0 2.5 1.5 4 4 4"></path>
+    <path d="M18 3c2.5 0 4 1.5 4 4v3c0 1.5 1 2 1 2s-1 .5-1 2v5c0 2.5-1.5 4-4 4"></path>
+
+    <text
+      x="12"
+      y="17"
+      text-anchor="middle"
+      font-size="13"
+      font-weight="bold"
+      fill="currentColor"
+      stroke="none"
+    >
+      C
+    </text>
+  </symbol>
+
+  <!-- Curly braces with I - Instance Methods section -->
+  <symbol
+    id="icon-instance-methods"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M6 3C3.5 3 2 4.5 2 7v3c0 1.5-1 2-1 2s1 .5 1 2v5c0 2.5 1.5 4 4 4"></path>
+    <path d="M18 3c2.5 0 4 1.5 4 4v3c0 1.5 1 2 1 2s-1 .5-1 2v5c0 2.5-1.5 4-4 4"></path>
+
+    <text
+      x="12"
+      y="17"
+      text-anchor="middle"
+      font-size="13"
+      font-weight="bold"
+      fill="currentColor"
+      stroke="none"
+    >
+      I
+    </text>
+  </symbol>
+
+  <!-- Double chevrons up - Ancestors section -->
+  <symbol
+    id="icon-ancestors"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <polyline points="17 11 12 6 7 11"></polyline>
+    <polyline points="17 18 12 13 7 18"></polyline>
+  </symbol>
+
+  <!-- User with plus - Included Modules section -->
+  <symbol
+    id="icon-includes"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+    <circle cx="8.5" cy="7" r="4"></circle>
+
+    <line
+      x1="20"
+      y1="8"
+      x2="20"
+      y2="14"
+    ></line>
+
+    <line
+      x1="23"
+      y1="11"
+      x2="17"
+      y2="11"
+    ></line>
+  </symbol>
+
+  <!-- User with check - Extended Modules section -->
+  <symbol
+    id="icon-extends"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+    <circle cx="8.5" cy="7" r="4"></circle>
+    <polyline points="17 11 19 13 23 9"></polyline>
+  </symbol>
+
+  <!-- List - Sections section -->
+  <symbol
+    id="icon-list"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <line
+      x1="8"
+      y1="6"
+      x2="21"
+      y2="6"
+    ></line>
+
+    <line
+      x1="8"
+      y1="12"
+      x2="21"
+      y2="12"
+    ></line>
+
+    <line
+      x1="8"
+      y1="18"
+      x2="21"
+      y2="18"
+    ></line>
+
+    <line
+      x1="3"
+      y1="6"
+      x2="3.01"
+      y2="6"
+    ></line>
+
+    <line
+      x1="3"
+      y1="12"
+      x2="3.01"
+      y2="12"
+    ></line>
+
+    <line
+      x1="3"
+      y1="18"
+      x2="3.01"
+      y2="18"
+    ></line>
+  </symbol>
+</svg>
+
+<header class="top-navbar">
+  <a href="../index.html" class="navbar-brand">
+    RDoc Documentation
+  </a>
+
+  <div class="navbar-search" data-search-container>
+    <button id="search-toggle" class="navbar-search-mobile" aria-label="Open search"
+            aria-controls="search-surface" aria-expanded="false" type="button">
+      <span aria-hidden="true">🔍</span>
+    </button>
+
+    <div class="search-backdrop" data-search-close></div>
+    <div id="search-surface" class="search-surface">
+      <form class="search-form" role="search" action="#" method="get" accept-charset="utf-8">
+        <span class="search-icon" aria-hidden="true">🔍</span>
+        <input id="search-field" role="combobox" aria-label="Search"
+               aria-autocomplete="list" aria-controls="search-results"
+               type="text" name="search" placeholder="Search (/) for a class, method..."
+               spellcheck="false" autocomplete="off"
+               title="Type to search, Up and Down to navigate, Enter to load">
+        <button type="button" class="search-close" aria-label="Close search" data-search-close>
+          <span aria-hidden="true">esc</span>
+        </button>
+      </form>
+
+      <div class="search-body">
+        <ul id="search-results" aria-label="Search Results"
+            aria-busy="false" aria-expanded="false"
+            aria-atomic="false" class="initially-hidden search-results"></ul>
+        <div class="search-empty">
+          <p>No recent searches</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Theme toggle button -->
+  <button id="theme-toggle" class="theme-toggle" aria-label="Switch to dark mode" type="button">
+    <span class="theme-toggle-icon" aria-hidden="true">🌙</span>
+  </button>
+</header>
+
+<div id="sidebar-navigation-toggle" role="button" tabindex="0" aria-label="Toggle sidebar" aria-expanded="false" aria-controls="sidebar-navigation">
+  <span aria-hidden="true">&#9776;</span>
+</div>
+
+
+<nav id="sidebar-navigation" role="navigation" hidden>
+  
+
+
+
+
+
+
+  <div id="fileindex-section" class="nav-section">
+    <details class="nav-section-collapsible" open>
+      <summary class="nav-section-header">
+        <span class="nav-section-icon">
+          <svg>
+            <use href="#icon-file"></use>
+          </svg>
+        </span>
+
+        <span class="nav-section-title">Pages</span>
+
+        <span class="nav-section-chevron">
+          <svg>
+            <use href="#icon-chevron"></use>
+          </svg>
+        </span>
+      </summary>
+
+      <ul class="nav-list">
+
+
+
+
+
+
+            <li>
+              <a href="../CHANGELOG_md.html">
+                CHANGELOG
+              </a>
+            </li>
+
+
+
+
+            <li>
+              <a href="../docs/scansion_rules_txt.html">
+                scansion_rules
+              </a>
+            </li>
+
+      </ul>
+    </details>
+  </div>
+
+
+  <div id="classindex-section" class="nav-section">
+  <details class="nav-section-collapsible" open>
+    <summary class="nav-section-header">
+      <span class="nav-section-icon">
+        <svg><use href="#icon-layers"></use></svg>
+      </span>
+      <span class="nav-section-title">Classes and Modules</span>
+      <span class="nav-section-chevron">
+        <svg><use href="#icon-chevron"></use></svg>
+      </span>
+    </summary>
+
+    <ul class="link-list nav-list"><li><details open><summary><code><a href="../Scansion.html">Scansion</a></code></summary><ul class="link-list nav-list"><li><code><a href="../Scansion/Accents.html">Accents</a></code></li></ul></details></li></ul>
+  </details>
+</div>
+
+</nav>
+
+<main role="main" aria-label="Page docs/scansion_rules.txt">
+
+<p>RÈGLES APPLIQUÉES DANS scansion.rb</p>
+
+<span id="label-" class="legacy-anchor"></span>
+<h6 id=""><a href="#"></a></h6>
+
+<p>(état courant du script — chaque règle est illustrée par un exemple concret tiré des tests ou des échantillons samples/)</p>
+
+<p>Le script phonétise chaque vers avec espeak-ng (API –ipa), puis aligne les lettres orthographiques sur les segments phonétiques. Toute restauration de « e muet » est faite par l’alignement ; si l’alignement échoue pour un mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).</p>
+<ol><li>
+<p>RÈGLES DE SCANSION (comptage des syllabes)</p>
+</li></ol>
+<hr>
+
+<p>1.1  E muet interne : prononcé (compté) devant une consonne.</p>
+
+<pre>« redemande encore » -&gt; ʁdəmɑ̃dɑ̃kɔʁ (le e de re-de-man-de restauré).</pre>
+
+<p>1.2  E muet final devant un mot à initiale consonantique : prononcé EN</p>
+
+<pre>CONTEXTE CLASSIQUE (diérèse active, donc aussi en mode :auto), non
+compté en mode contemporain (plain / --no-dierese) pour un VRAI e caduc.
+« table ronde » -&gt; ta-blə-ʁɔ̃d (3 syllabes, contexte classique) ;
+en contemporain -&gt; tabl-ʁɔ̃d (2 syllabes) — « mes pères criaient
+dessous mes pieds » -&gt; 8 syllabes (pɛʁ, le e de « pères » non compté).
+EXCEPTION : le « e fixe » des monosyllabes grammaticaux (le, de, me,
+te, se, que, ne, je, ce — prédicat stable_schwa?) est un schwa STABLE,
+jamais élidé devant une consonne, même en contemporain :
+« derrière la tête le passé jouit » -&gt; dɛ-ʁjɛʁ-la-tɛt-lə-pa-se-ʒwi
+(8 syllabes, jamais lpa-se). Ils ne s&#39;élident que devant une voyelle
+(élision : « l&#39;ami », « qu&#39;amer »).
+TIRAGE CONTEXTUEL (process_lines, aussi en mode plain/--no-dierese) : si
+le compte d&#39;un vers ne tombe pas sur un mètre (6/8/10/12) mais que les
+vers voisins (fenêtre de 5) sont unanimes (&gt;= 70 %) sur un mètre M, on
+re-scanne en comptant l&#39;e caduc (sans diérèse) et on retient le résultat
+s&#39;il fait exactement M — « les gouttes du dernier envol » -&gt; 8 syllabes
+(gu-tə) dans un poème d&#39;octosyllabes ; un vers déjà sur un mètre n&#39;est
+jamais tiré (« mes pères criaient dessous mes pieds » -&gt; 8, pɛʁ).</pre>
+
+<p>1.3  E muet final devant un mot à initiale vocalique (voyelle ou h muet) :</p>
+
+<pre>élidé (non compté). « table orange » -&gt; tablɔʁɑ̃ʒ.</pre>
+
+<p>1.4  E muet en fin de vers : non compté.</p>
+
+<pre>« la table » -&gt; la-tabl (2 syllabes).</pre>
+
+<p>1.4b E muet devant une pause graphique (, ; : ! ? … —) : non compté,</p>
+
+<pre>comme en fin de vers — SAUF si le e est prononcé (CR_E_PRONOUNCED ou,
+en contexte classique, mot en -Cre : voir 1.5d) : « ivre, complice »
+-&gt; i-vʁə (le e de « ivre » reste compté devant la virgule).
+« perclus des coups de rêche, l’abstinente » -&gt;
+pɛʁ-kly-de-ku-də-ʁɛʃ-lab-sti-nɑ̃t (9 syllabes, pas 10) ;
+« qui se retourne, s’éloigne » -&gt; ki-sə-ʁə-tuʁn-se-lwaɲ (6 syllabes).
+EXCEPTION ALEXANDRINE (mode :auto, contexte classique) : si compter le e
+devant la pause mène le vers exactement à 12 syllabes, le e est compté
+(paramètre pause_e) — « Dites, sans l’accuser de chercher un esclave, »
+-&gt; di-tə-… (12). Jamais appliqué ailleurs : en vers irrégulier ou
+contemporain (--no-dierese), la pause silencie bien le e muet.</pre>
+
+<p>1.5  E muet final devant un s muet : restauré EN CONTEXTE CLASSIQUE.</p>
+
+<pre>« tables blanches » -&gt; ta-blə-blɑ̃ʃ (3 syllabes, classique) ;
+en contemporain -&gt; tabl-blɑ̃ʃ (2 syllabes).
+Devant un mot à initiale vocalique, le e muet d’un PLURIEL en -es/-eux
+est prononcé avec liaison du s (plural_mute_e?) : « nouvelles amours »
+-&gt; nu-vɛ-lə-za-muʁ (5), « des âmes hautaines » -&gt; de-za-mə-o-tɛn ;
+le singulier élide toujours (« la table amie » -&gt; la-tabl-a-mi).</pre>
+
+<p>1.5b E muet FINAL après une voyelle (groupes -ée, -ie, -ue) : jamais compté.</p>
+
+<pre>« gravée des noms célestes » -&gt; gʁa-ve-de-nɔ̃-se-lɛst (6 syllabes,
+« gra-vée » = 2) ; « suivie d’ombres » -&gt; syi-vi-dɔ̃... (8 syllabes,
+« sui-vie » = 2, le ui formant UNE syllabe et le e final étant muet).
+Mais un e muet INTERNE après une voyelle, devant une consonne, est
+compté (règle 1.1) : « alouettes » -&gt; a-lwɛ-ə-tə (4 syllabes,
+a-lou-e-tte), « les alouettes lestes qui mélangent » = 10 syllabes.</pre>
+
+<p>1.5c Digrammes vocaliques en UNE syllabe : ai, au, ou, eu, ei, ay, ey,</p>
+
+<pre>ui, ue, œ (DIGRAPH_ONE_PHONE). La 2e lettre est absorbée seulement
+si la 1re lettre ne suit pas elle-même une voyelle : ainsi dans
+« alouettes » le e reste compté (règle 1.5b), mais « m&#39;accueille »
+-&gt; ma-kœj (7 syllabes pour le vers, le ue de -ueille formant un œ).
+« ui » compte pour 2 voyelles espeak (yi) : « qui » -&gt; ki.</pre>
+
+<p>1.4c DIÉRÈSE — RÉSERVÉE AU CONTEXTE CLASSIQUE, automatique et contextuelle</p>
+
+<pre>par défaut dans le CLI (dierese: :auto ; --no-dierese pour désactiver
+entièrement, p. ex. corpus contemporain). Un « i » suivi d’une
+voyelle pleine que espeak a rendu par un glide compte DOUBLE en vers
+classique (lion -&gt; li-jɔ̃, dieu -&gt; di-jø, viens -&gt; vi-ens ; mais
+« hier » [jɛʁ] reste 1). Même traitement pour un « u » suivi d’un
+« é/è », d’un « eu » ou d’un « a » final (± s/x), rendu glide
+(nuée -&gt; nu-ée, exténuée -&gt; ex-té-nu-ée, majestueux -&gt; ma-jes-tu-eux,
+ruas -&gt; ru-as ; 2 syllabes), un « i » suivi d’un « u » (médium -&gt;
+mé-di-um), et pour un « ou »
+suivi d’un « a »/« é »/« è » (couardise -&gt; cou-ar-dise, joua -&gt; jou-a,
+dénoué -&gt; dé-nu-é) — mais PAS
+pour un « ue »/« ua » interne (ruelle -&gt; ʁɥɛl, nuage -&gt; nyaʒ,
+1 syllabe). En re-scan CIBLÉ (dierese_words, voir ci-dessous), deux
+extensions : « u+a » interne (suaves -&gt; su-a-ves, muaient -&gt; mu-a-ient,
+mortuaires -&gt; mor-tu-aires) et « ou+i » (épanoui -&gt; é-pa-nou-i,
+épanouit -&gt; é-pa-nou-it). Le contexte classique est détecté par les
+VERS VOISINS (classical_context?) : majorité de vers dans la BANDE
+alexandrine 10-13 (les 11/13 y comptent comme candidats diérèse)
+OU la bande octosyllabe 6-9 (les 7 y comptent comme candidats),
+dans une fenêtre de ±5 vers (seuil
+70 %). En poésie
+contemporaine (samples/), la diérèse ne peut PAS être déduite d’un
+nombre cible : les rapports de samples/ tournent avec --no-dierese.
+Même en contexte classique, le re-scan avec diérèse n’est retenu que
+s’il mène le vers à 6/8/10/12. Si le re-scan global (diérèse sur tous
+les mots candidats + e des -re comptés) ne tombe pas sur un mètre, un
+re-scan CIBLÉ essaie chaque mot candidat individuellement
+(fix_candidate_words : diérèse et/ou e de -re sur ce seul mot) et retient
+la première variante qui atteint 6/8/10/12 — cela évite les sur-comptages
+quand la diérèse globale « tire » sur de faux amis (vieux, dieu…).
+L’e muet final n’est jamais compté (règle 1.4).</pre>
+
+<p>1.5c bis  E après g/c doux (vengeance -&gt; vɑ̃ʒɑ̃s, pages -&gt; paʒ) : muet</p>
+
+<pre>quand suivi d’une voyelle, ou d’un s/x final après une voyelle
+(mais « c’est » garde son e : c initial).
+EN CONTEXTE CLASSIQUE, le e final des mots en -ce/-ge/-que/-gue
+(pluriel -s/-x accepté) est COMPTÉ comme celui des -re (voir 1.5d) :
+Pâques -&gt; pâ-ques, algue -&gt; al-gue, vagues -&gt; va-gues,
+jonque -&gt; jon-que, Cantique -&gt; can-ti-que, calices -&gt; ca-li-ces,
+rouges -&gt; rou-ges, douce -&gt; du-sə, grâce -&gt; grâ-sə,
+ombrage -&gt; om-bra-gə (voir cluster_re_pronounced?).</pre>
+
+<p>1.5d E muet après un groupe -Cr- (sombre, nombre, cédre, mettre, fièvre,</p>
+
+<pre>spectre -&gt; sɔ̃bʁ, nɔ̃bʁ, mɛtʁ, fjɛvʁ, spɛktʁ) : JAMAIS compté, même
+devant une consonne (contrairement à -le : « tables blanches » -&gt;
+ta-blə-blɑ̃ʃ). Ne s’applique qu’en fin de mot (ou devant s/x muet) ;
+un e interne avant une consonne reste compté (règle 1.1).
+EN CONTEXTE CLASSIQUE (diérèse active, voir 1.4c), le e final de tout
+mot en -re (consonne ou voyelle + r + e, pluriel en -s accepté) est COMPTÉ :
+notre -&gt; no-tʁə, vivre -&gt; vi-vʁə, âpre -&gt; â-pʁə, spectre -&gt; spɛk-tʁə,
+meurtre -&gt; mœʁ-tʁə, centre -&gt; sɑ̃-tʁə, pauvre -&gt; po-vʁə, ivre -&gt; i-vʁə,
+sombre -&gt; sɔ̃-bʁə, décembre -&gt; de-sɑ̃-bʁə, mais aussi -ère/-oire/-ire :
+mère -&gt; mè-re, chère -&gt; chè-re, gloire -&gt; gloi-re, terre -&gt; ter-re,
+encore -&gt; ɑ̃-kɔʁə… (voir cluster_re_pronounced?).
+La règle 1.5d stricte n&#39;est donc appliquée qu&#39;en mode contemporain
+(--no-dierese).</pre>
+
+<p>1.5e -ent PRONONCÉ (3e personne du pluriel) : en re-scan ciblé mot à mot</p>
+
+<pre>(ent_words), t’arrivent -&gt; ta-ʁi-vɑ̃, surgissent -&gt; syʁ-ʒi-sɑ̃,
+marquent -&gt; maʁ-kɑ̃ (le t de liaison est abandonné). Jamais en passe
+globale, et jamais devant une nasale déjà prononcée (moment -&gt; mɔ-mɑ̃).</pre>
+
+<p>1.6  Y-GLIDE : « y » suivi d’une voyelle est le glide /j/ (CONSONNE) :</p>
+
+<pre>vowel_initial? -&gt; false (pas d’élision : peintre Yosen -&gt; pein-tʁə),
+mais liaison_initial? -&gt; true (les yeux -&gt; lez-jø, des yachts -&gt;
+de-zjat). Voir y_glide? / liaison_initial?. Le re-scan classique n&#39;est retenu que s&#39;il mène le vers
+à un mètre (6/8/10/12), donc les vers déjà justes ne sont pas touchés.
+EXCEPTIONS (CR_E_PRONOUNCED, pluriels en -s/-x acceptés via
+cr_e_pronounced?) : « astre », « battre », « croître », « entendre »,
+« entre », « être », « guerre », « hydre », « maître », « moindre »,
+« œuvre », « ombre », « peindre », « tonnerre », « ventre » gardent leur e final
+devant une consonne -&gt;
+as-tʁə, batʁə, kʁwatʁə, ɑ̃-tɑ̃-dʁə, ɑ̃-tʁə, ɛ-tʁə, gɛ-ʁə, zi-dʁə,
+mɛ-tʁə, mwɛ̃-dʁə, nœ-vʁə, ɔ̃-bʁə, pɛ̃-dʁə, tɔ-nɛ-ʁə, vɑ̃-tʁə
+(« l’amour est mort entre tes
+bras » -&gt; la-muʁ-ɛ-mɔʁ-ɑ̃-tʁə-te-bʁa, 8 syllabes ; « L’astre n’est encor
+qu’étincelle ; » -&gt; la-stʁə-nɛt-ɑ̃-kɔʁ-ke-tɛ̃-sɛl, 8 syllabes ;
+« Pour t’entendre sonner, je monte sur ma tour, » -&gt;
+puʁ-tɑ̃-tɑ̃-dʁə-sɔ-ne-ʒə-mɔ̃-tə-syʁ-ma-tuʁ, 12 syllabes ;
+« Ô lâche ! Et peut-être demain, » -&gt; o-laʃ-e-pø-ɛ-tʁə də-mɛ̃,
+8 syllabes ; « La guerre s’est dressée, et j’ai vu, moi rêveur, » -&gt;
+la-gɛ-ʁə-sɛ-dʁɛ-se-e-ʒe-vy-mwa-ʁɛ-vœʁ, 12 syllabes ;
+« Mener tous les astres la nuit ; » -&gt; mə-ne-tu-le-za-stʁə-la-nyi,
+8 syllabes ; « Appuyer dans l’ombre du vide » -&gt;
+ap-yi-je-dɑ̃-lɔ̃-bʁə-dy-vid, 8 syllabes). Devant une voyelle
+(« l’ombre où… » -&gt; lɔ̃bʁ, 1 syllabe), devant une pause ou en fin
+de vers, l’élision habituelle s’applique.</pre>
+
+<p>1.6  Terminaison -ent / -ente / -entes :</p>
+
+<pre>- prononcée (e compté) si le mot suivant commence par une consonne
+  ou un h aspiré, à l&#39;intérieur d&#39;un vers, ET si le e de -ent suit
+  une consonne ;
+  « ils chantent bien » -&gt; i-lʃɑ̃-tə-bjɛ̃ (4 syllabes),
+  « ils chantent héros » -&gt; i-lʃɑ̃-tə-e-ʁo (h aspiré, 5 syllabes) ;
+- JAMAIS prononcée quand le e suit une voyelle (-uent, -ient, -ient
+  des imparfaits) : le e appartient au groupe vocalique précédent ;
+  « qui perpétuent le souvenir » -&gt; ki-pɛ-ʁpe-ty-lə-su-və-niʁ
+  (8 syllabes, pas 9), « ils crient bien » -&gt; i-lkʁi-bjɛ̃ ;
+- non prononcée en fin de vers (« ils chantent » -&gt; i-lʃɑ̃t) ;
+- non prononcée devant une voyelle ou un h muet, avec liaison en t
+  si espeak la prononce : « ils chantent ici » -&gt; il-ʃɑ̃tt-i-si,
+  « ils peuplent à peine » -&gt; il-pøplt-a-pɛn ;
+- le e nasal de -ent n&#39;est PAS restauré quand il est déjà prononcé
+  (« violent » -&gt; œ̃-vjo-lɑ̃-e-ʁo, pas de schwa ajouté).</pre>
+
+<p>1.7  Liaisons de consonnes finales devant une voyelle :</p>
+
+<pre>s-&gt;z (« les amis » -&gt; lɛzami), d-&gt;t (« quand il » -&gt; kɑ̃til),
+g-&gt;k, b-&gt;p, z-&gt;s, -st/-x -&gt; t (« est autre » -&gt; ɛtotʁ),
+n/m après voyelle nasale (« un art » -&gt; œ̃naʁt),
+et r final restauré quand espeak-ng l&#39;a supprimé
+(« qu&#39;amer aucun » -&gt; ka-meʁ-o-kœ̃).
+La liaison a lieu aussi pour les pluriels en -ts/-ns/-nts
+(« fronts étoilés » -&gt; fʁɔ̃zetwal...).
+Une pause graphique (, ; : ! ? … —) BLOQUE la liaison.</pre>
+
+<p>1.8  H muet vs h aspiré : elision devant h muet, pas devant h aspiré</p>
+
+<pre>(petite liste : haie, haine, hache, honte, héros, hérisson, harpe,
+halle, hurler, heaume, hocher, hibou).</pre>
+<ol><li>
+<p>RÈGLES D’ALIGNEMENT LETTRE -&gt; PHONE (anti-fallback)</p>
+</li></ol>
+<hr>
+
+<p>2.1  Nettoyage de la sortie espeak-ng avant segmentation :</p>
+
+<pre>suppression des marqueurs de changement de langue &quot;(en)&quot;/&quot;(fr)&quot;
+ENTIERS (sinon il reste des segments parasites &quot;en&quot;/&quot;fr&quot; :
+qu’hier -&gt; (en)kwhˈiə(fr)), des caractères invisibles
+(BOM U+FEFF, espaces fines), des espaces, des marques de stress
+ˈ ˌ, de la liaison ‿, des longueurs ː ˑ, de TOUTE ponctuation
+([[:punct:]] — espeak émet « , » dans le flux IPA),
+normalisation ɡ (U+0261) -&gt; g, et des entités HTML (&amp;nbsp; etc.)
+avant phonétisation. Dé-anglicisation de l’IPA anglais renvoyé par
+espeak-ng pour certains mots (rythme, macbeth, punch) :
+ɹ-&gt;ʁ, θ-&gt;t, ð-&gt;d, ɪ-&gt;i, ʌ-&gt;a, æ-&gt;a, ɒ-&gt;ɔ.
+Les respellings d’entrée ponctuels (qu’hier, d’aujourd’hui, punch,
+Te Deum, Fould, Barthélemy...) ont été RETIRÉS à la demande : aucune
+règle codée en dur pour un seul mot — normalize_input ne fait plus
+que nettoyer entités HTML et chiffres.</pre>
+
+<p>2.1b Dévoisement final rendu par espeak-ng : z-&gt;s, d-&gt;t, b-&gt;p, g-&gt;k,</p>
+
+<pre>v-&gt;f en fin de mot (Austerlitz -&gt; ...lits).</pre>
+
+<p>2.1c Un h réellement prononcé par espeak-ng est consommé</p>
+
+<pre>(hier -&gt; hiəʁ dans certains contextes).</pre>
+
+<p>2.1d Nasal n/m fermé par une queue silencieuse et rendu par une voyelle</p>
+
+<pre>nasale : « soyons » -&gt; swa-jɔ̃ (le s final est muet).</pre>
+
+<p>2.1e Digramme suivi d’un glide dans son propre segment, en milieu de</p>
+
+<pre>mot seulement : « ay » -&gt; ɛ+j (rayonner -&gt; ʁɛ-jɔn) ; jamais en fin
+de mot (fou, tout) ni avant -l (soleil -&gt; sɔ-lɛj via la règle -ll-).</pre>
+
+<p>2.1f Un digramme vocalique consomme sa part du run (jusqu’à 2 voyelles</p>
+
+<pre>pour ui) : « nuit est » -&gt; run &quot;yiɛ&quot; = yi (nuit) + ɛ (est).
+Écho du 2e lettre du digramme (pays -&gt; p-ɛ-i) : avalé quand le mot
+se termine juste après (sauf si le mot suivant commence par une
+voyelle : « ou entendre » garde le ɑ̃).</pre>
+
+<p>2.1g Divers : s intervocalique -&gt; z aussi devant h muet (déshonneur) ;</p>
+
+<pre>p muet devant t (sept -&gt; sɛt) ; t muet devant m (montmartre) ;
+r muet devant l (waterloo) ; l muet devant s final voisé (fils -&gt; fis,
+mais ils -&gt; il) ; f final dans SILENT_TAILS (serf) ; chiffres retirés
+de l’entrée (31 -&gt; « trente et un »). normalize_input (appliqué à
+words_of ET à espeak pour garder lettres et phones cohérents) ne
+normalise que les entités HTML et les chiffres.
+Un glide suivi d’une voyelle en milieu de mot avale la voyelle
+(a -&gt; j+a : effroyable -&gt; efʁwa-jabl, voyage -&gt; vwa-jaʒ).</pre>
+
+<p>2.1h Comptage des syllabes : un « y »/ɥ (glide) directement suivi d’une</p>
+
+<pre>voyelle ne compte pas comme syllabe (fuyait -&gt; f-yi-jɛ = 2, pas 3) —
+SAUF si la voyelle suivante appartient au MOT SUIVANT (barrière de
+mot passée à count_syllables) : c’est alors un hiatus et le y est le
+noyau /y/, compté (étendue où -&gt; …-dy-u = 2 syllabes pour « due où »).
+Un e final-ish dont le mot a déjà sa voyelle ne consomme jamais un
+segment voyelle suivant (sinon il vole la voyelle du mot suivant).</pre>
+
+<p>2.1i Suite nasale chevauchant une frontière de mot : « comment il » -&gt;</p>
+
+<pre>run « ɑ̃i » = ɑ̃ de comment + i de il. Quand le mot suivant commence
+par une voyelle, on ne garde que la voyelle nasale et le reste du
+run est laissé au mot suivant (comment-il -&gt; kɔ-mɑ̃-il, 3 syllabes).</pre>
+
+<p>2.1j Run glide+voyelle devant un mot à initiale vocalique : la 2e voyelle</p>
+
+<pre>du run appartient au mot suivant (étendue où -&gt; « yu » = y de étendue
++ u de où) ; le digramme « ue » ne l’avale pas entière (règle 2.1f).</pre>
+
+<p>2.1k Nasale en coda léguée au mot suivant : « quand nous » -&gt; kɑ̃-nu,</p>
+
+<pre>le n appartient à « nous ». La nasale n’est cédée que si elle suit
+une voyelle dans le mot courant, que la queue restante est muette
+et que le mot suivant commence par la même nasale — jamais à
+l’initiale d’un mot (« nous nous » garde son n : nu-nu).</pre>
+
+<p>2.1l E après un y prononcé comme glide : « appuyer » -&gt; a-p-yi-j-e, le</p>
+
+<pre>« j » et la voyelle qui suivent sont consommés avec le e
+(ap-yi-je), sinon le « j » bloquerait l’alignement du mot suivant.</pre>
+
+<p>2.2  Segmentation en « runs » voyelle/consononne ; un run voyelle est</p>
+
+<pre>découpé par mot : « violent héros » -&gt; segment ɑ̃e = ɑ̃ + é de héros.</pre>
+
+<p>2.3  Digrammes de consonnes : ch-&gt;ʃ, ph-&gt;f, th-&gt;t, qu-&gt;k, ss-&gt;s, ck-&gt;k,</p>
+
+<pre>gn-&gt;ɲ (ou n, parfois n+j : « éteignent » -&gt; etɛnj).</pre>
+
+<p>2.4  C/G doux devant e i y é è ê (SOFT_NEXT) : c-&gt;s, g-&gt;ʒ.</p>
+
+<pre>« c&#39;est » -&gt; le mot c seul vaut s devant voyelle ;
+« sc- » devant voyelle douce : c muet (« scellé » -&gt; sɛle) ;
+« second(e) » -&gt; g dur (səɡɔ̃d) ;
+« -tion » -&gt; s (dilatasjɔ̃) sauf après s (« question » -&gt; kɛstjɔ̃).</pre>
+
+<p>2.5  Digrammes voyelles prononcés en UNE voyelle (2e lettre absorbée :</p>
+
+<pre>ai au ou eu ei ay ey) — « ou entendre » ne mange pas le ɑ̃ suivant ;
+sinon la 2e lettre d&#39;un digramme voyelle est absorbée quand il ne
+reste plus de voyelle à consommer (ai, au, ou, ui, eu :
+« chair », « faite », « au », « souvenir », « coups »...).</pre>
+
+<p>2.6  Glides j ɥ w : i/u/o/y (et a après voyelle, « prévoyante ») devant</p>
+
+<pre>voyelle -&gt; glide (« yeux » -&gt; jø, « miroir » -&gt; miʁwaʁ) ;
+-il/-ill après le glide absorbé (« œil », « soleil », « jaillisse ») ;
+-ll- après voyelle rendu par j (« aiguille » -&gt; ɛɡij) ;
+voyelle avalée après glide si aucune voyelle ne suit (« feuilles »).</pre>
+
+<p>2.7  E muet restauré quand aucune voyelle phonétique ne correspond</p>
+
+<pre>(c&#39;est le cœur du script) ; le pruning de scansion (règles 1.2-1.6)
+décide ensuite de le garder ou de l&#39;éliminer.</pre>
+
+<p>2.8  Nasales : n/m absorbés après une voyelle fermée, y compris à travers</p>
+
+<pre>un digramme (« maintenant » -&gt; mɛ̃tnɑ̃, « pain » -&gt; pɛ̃).</pre>
+
+<p>2.9  Consonnes silencieuses en queue, à n’importe quelle position quand</p>
+
+<pre>la tête ne correspond pas (SILENT_TAILS : ent, nt, nts, nte, ns, nc, ms, cs,
+s, t, ts, d, x, z, p, ps, g, gt, st, ut, r, n, it, ds, rs, c, ôt, u,
+au, aux, eau, eaux, eux, ux, ous...) : « fronts » -&gt; fʁɔ̃,
+« coups » -&gt; ku, « pierre » -&gt; pjɛʁ, « raconter » -&gt; ʁakɔ̃te,
+« flanc » -&gt; flɑ̃, « doigt » -&gt; dwa.
+Quand les segments sont épuisés (fin de vers), toute queue restante
+est absorbée silencieusement au lieu de faire échouer le vers.</pre>
+
+<p>2.10 Lettres doublées prononcées une fois (« belle », « bonne », « pierre »).</p>
+
+<p>2.11 Silences lexicaux : h muet ; g après n devant consonne (« longtemps »</p>
+
+<pre>-&gt; lɔ̃tɑ̃) ; p après m (« compte » -&gt; kɔ̃t) ; u après g/q devant voyelle
+(« guerre », « qui ») ; voyelle initiale muette (« alors » -&gt; lɔʁ) ;
+voyelle après h muet élidé (« au hasard » -&gt; ozaʁ) ; t initial fondu
+dans la liaison du mot précédent (« et toi » -&gt; etwa).</pre>
+
+<p>2.12 S intervocalique -&gt; z (« gueuse » -&gt; ɡøz, « désormais »).</p>
+
+<p>2.13 X : -&gt; ks, ou s/z/g (« six », « dix »), ou ɡz (« existe » -&gt; ɛɡzist),</p>
+
+<pre>ou muet en queue (« peux », « deux », « vieux sperme » -&gt; vjøspɛʁm).</pre>
+
+<p>2.14 W prononcé v par espeak (« wagon » -&gt; vagɔ̃).</p>
+
+<p>2.15 Une queue silencieuse est traitée comme muette quand le segment</p>
+
+<pre>appartient en fait au mot suivant qui commence par le même phone
+(« noms célestes » -&gt; nɔ̃selɛst, « est son » -&gt; ɛsɔ̃, « nœud de » -&gt;
+nødə...) — sauf si espeak a doublé le phone (« cher raison » -&gt;
+ʁʁɛz : chaque mot prend le sien).</pre>
+
+<p>2.16 Digramme « ue » (et tout digramme en glide+voyelle : muette -&gt; yɛ,</p>
+
+<pre>tuer -&gt; ye) : quand le run contient une PAIRE glide+voyelle (2 voyelles
+dont la 1re est un glide ɥ/j/w), le digramme absorbe TOUT le run,
+pas une seule voyelle — sinon la voyelle restante reste bloquée et
+fait échouer le mot (« brisée, muette de souffrance »).</pre>
+
+<p>2.17 Suppression d’un digramme vocalique : un digramme ne se déclenche</p>
+
+<pre>PAS quand la lettre courante est déjà la 2e lettre d’un digramme avec
+la lettre précédente (alouettes : o-u-e -&gt; le e compte encore ;
+mais yeux : y vaut j ici, donc « eu » EST un digramme -&gt; ʒø).
+Le critère est purement orthographique : la paire (lettre précédente
++ lettre courante) appartient à DIGRAPH_ONE_PHONE.</pre>
+
+<p>2.18 Fragment d’apostrophe + run vocalique spanning : après un fragment</p>
+
+<pre>d’elision d’une lettre (c’, j’, l’, d’, n’, s’, t’, m’, qu’), si le
+mot courant a dû scinder un run vocalique (1re voyelle du run) et que
+sa queue restante est une queue silencieuse de 2+ lettres dont la
+dernière consonne correspond au segment suivant (c’ est -&gt; se|ɛt),
+la voyelle restante du run est émise pour ce mot (elle lui appartient)
+afin que le curseur avance : « c’ est une danse perpétuelle » -&gt;
+se-ɛt-y-nə-dɑ̃-sə-pɛʁ-pe-tyɛl (9 syllabes).</pre>
+
+<p>2.19 « oe » prononcé en 2 voyelles (Noël -&gt; nɔ-ɛl, canoë -&gt; ka-nɔ-e,</p>
+
+<pre>goélette -&gt; ɡɔ-e-lɛt) : DIGRAPH_ONE_PHONE « oe » =&gt; 2. MAIS si le mot
+suivant commence par une voyelle et que le run contient exactement
+2 voyelles, le run peut FRANCHIR la frontière de mot (boeufs au -&gt;
+run « øo » = ø de boeufs + o de « au ») : on ne consomme alors qu’UNE
+voyelle (take=1) et le reste du run est laissé au mot suivant.</pre>
+
+<p>2.20 Lettre voyelle ouvrant une queue silencieuse de 2+ lettres devant un</p>
+
+<pre>phone consonne : la lettre est sautée avec toute la queue (boeufs -&gt;
+bø, « ufs » muet ; SILENT_TAILS inclut désormais ufs/oeufs). SAUF :
+queues en -x (le x peut liaisonner : beaux yeux -&gt; bo-zjø) et queues
+-ent/-nt (règle 1.6 prioritaire). Les queues d’une seule lettre (le u
+de « tu ») ne sont pas concernées.</pre>
+
+<p>2.21 t -&gt; s devant i+voyelle SEULEMENT si espeak-ng a vraiment supprimé</p>
+
+<pre>le t (tête == s) : captieux -&gt; kap-sjø, dilatation -&gt; di-la-sjɔ̃ ;
+mais pitié -&gt; pi-tje, sentier -&gt; sɑ̃-tje, bastion -&gt; bas-tjɔ̃ gardent
+leur t (tête == t).</pre>
+
+<p>2.22 E quasi-final (suivi seulement de s/t/ts/ps/x) devant une voyelle</p>
+
+<pre>non schwa : la tête voyelle n’est attribuée au mot SUIVANT que si
+celui-ci commence par une voyelle (parle à -&gt; paʁ-la). Devant un mot
+à initiale consonne, une tête voyelle appartient au mot courant et
+est consommée (bouquet de -&gt; bu-kɛ-dé).</pre>
+
+<p>2.23 Absorption d’un n/m fermé après une voyelle : seulement si le phone</p>
+
+<pre>nasal correspondant n’est PAS déjà en attente en tête de segment
+(hymne -&gt; i-m-n : le m est consommé normalement, pas absorbé via la
+voyelle nasale).</pre>
+
+<p>2.24 Branchement nasal + liaison : un n/m final rendu voyelle nasale</p>
+
+<pre>(voyant -&gt; vwa-jɑ̃) ne saute PAS les lettres suivantes — un -t final
+devant un mot à initiale voyelle reste une liaison prononcée
+(voyant à -&gt; vwa-jɑ̃-ta).</pre>
+
+<p>2.25 Un glide (j ɥ w) ne mange jamais la voyelle NASALE qui le suit : elle</p>
+
+<pre>appartient au n/m suivant (voyant -&gt; vwa-j-ɑ̃-t, pas vwa-ja-nt).</pre>
+
+<p>2.26 Digramme vu depuis sa 2e lettre : si la lettre courante est la 2e</p>
+
+<pre>d’un digramme et que le run contient 2 voyelles, le digramme est la
+paire précédente (aiguille -&gt; ɛ-g-yi-j : « ui » = u+i rendu « yi »).</pre>
+
+<p>2.27 S initial devant une consonne voiced prononcée z par espeak-ng :</p>
+
+<pre>s -&gt; z (sveltesse -&gt; zvɛltɛs).</pre>
+
+<p>LIMITATION CONNUE : -u final (tu, nu, su) devant un mot à initiale</p>
+
+<pre>voyelle — le glide y n’est pas compté comme noyau (tu es -&gt; compté
+1 syll. au lieu de 2), car on ne peut pas distinguer /y/ noyau de
+/j/ glide dans la chaîne de phones seule.</pre>
+<ol><li>
+<p>COMPORTEMENT DE SECOURS</p>
+</li></ol>
+<hr>
+
+<p>Si un mot ne peut pas être aligné, le vers entier est émis en sortie espeak brute avec le préfixe « ~ » et le nombre de syllabes d’espeak : le script préfère manquer des e muets plutôt qu’en inventer.</p>
+<ol><li>
+<p>FORMAT DE SORTIE</p>
+</li></ol>
+<hr>
+
+<p>Result#phones (et donc la ligne « ⇒ » du CLI) porte un tiret « - » entre les syllabes. Règles de découpage (mark_syllables) :</p>
+
+<pre>- entre deux voyelles, le tiret va devant le plus long groupe d&#39;attaque
+  VALIDE : consonne seule ; obstruente+liquide(+glide) ; obstruent+glide ;
+  liquide+glide ; nasale+glide ; s+glide (s+voyelle : -sion -&gt; sjɔ̃) ;
+  s+obstruent seulement dans un groupe de 3+ consonnes
+  (« respiration » -&gt; ʁɛs-pi-ʁa-sjɔ̃) mais PAS sinon
+  (« abstinente » -&gt; ab-sti-) ;
+- une FRONTIÈRE DE MOT est un point de coupe : la consonne finale du
+  mot précédent devient coda (« mer en » -&gt; mɛʁ-ɑ̃, « par moi » -&gt;
+  paʁ-mwa, « l&#39;envol est » -&gt; vɔl-ɛ, « inutiles, enfant » -&gt; til-ɑ̃) ;
+- exceptions à la frontière de mot : la lettre de LIAISON (s x z d g b
+  n m) devant un mot à initiale vocalique reste attaque
+  (« les amis » -&gt; lɛ-za-mi), sauf si une pause bloque la liaison ;
+  les articles élidés l&#39;/j&#39; fusionnent (« l&#39;abstinente » -&gt; lab-sti...) ;
+- la coda finale ne reçoit pas de tiret ; un hiatus voyelle-voyelle
+  (aucune consonne entre les deux) est séparé (ə-e) :
+« perclus »        -&gt; pɛʁ-kly        (per-clus)
+« se retourne, »   -&gt; ʁə-tuʁn        (re-tourne)
+« l’abstinente »   -&gt; lab-sti-nɑ̃t    (l’ab-sti-nente)
+« miroir »         -&gt; mi-ʁwaʁ
+« étrangère »      -&gt; e-tʁɑ̃-ʒɛʁ</pre>
+
+<p>Exemple : « étrangères à ton nom, miroir » -&gt; e-tʁɑ̃-ʒɛ-ʁə-za-tɔ̃-nɔ̃-mi-ʁwaʁ (9 syllabes). La ligne « (espeak seul : …) » de fallback et Result#raw restent sans tirets. Le mode -s/--syllables n’affiche que le nombre de syllabes.</p>
+
+<p>FICHIERS</p>
+<hr>
+
+<p>scansion.rb        le script scansion_spec.rb   tests RSpec (espeak simulé, déterministe)</p>
+
+</main>
+
+<aside id="table-of-contents" class="table-of-contents" role="complementary" aria-label="Table of Contents">
+  <div class="toc-sticky">
+    <h3 class="toc-heading">On This Page</h3>
+    <nav class="toc-nav" id="toc-nav" aria-label="Page sections">
+      <!-- Generated by JavaScript based on page headings -->
+    </nav>
+  </div>
+</aside>
+
+
+<footer class="site-footer">
+  
+
+  <div class="footer-bottom">
+    <p>
+      Generated by <a href="https://ruby.github.io/rdoc/">RDoc 8.1.0</a>
+      using the Aliki theme by <a href="http://st0012.dev">Stan Lo</a>
+    </p>
+  </div>
+</footer>
+
+</body>
+

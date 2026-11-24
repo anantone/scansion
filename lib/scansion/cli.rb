@@ -16,6 +16,11 @@ module Scansion
     # script ($PROGRAM_NAME == __FILE__), afin que le require de ce fichier
     # reste sans effet de bord : pas d'OptionParser qui consommerait l'ARGV de
     # l'hôte, pas de mutation d'encodage global.
+    #
+    # @param argv [Array<String>] arguments de la ligne de commande
+    #   (options --no-dierese, -s/--syllables, -h/--help, puis FILE ou « - »
+    #   pour lire l'entrée standard)
+    # @return [void]
     def main(argv = ARGV)
       options = { syllables_only: false, dierese: :auto }
       OptionParser.new do |opts|

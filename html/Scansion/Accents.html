@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>module Scansion::Accents - RDoc Documentation</title>
+
+
+  <meta
+    name="keywords"
+    content="ruby,module,Scansion::Accents"
+  >
+
+    <meta
+      name="description"
+      content="module Scansion::Accents: Accents de phrase (groupes rythmiques, ˈ) et accents secondaires de mot (ˌ) pour la poésie française, par-dessus la syllabification du gem. Accents."
+    >
+
+
+
+
+
+<!-- Open Graph / Facebook -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="module Scansion::Accents - RDoc Documentation">
+
+
+
+    <meta property="og:description" content="Accents de phrase (groupes rythmiques, ˈ) et accents secondaires de mot (ˌ) pour la poésie française, par-dessus la syllabification du gem. Accents.">
+
+
+
+
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="module Scansion::Accents - RDoc Documentation">
+
+
+
+    <meta name="twitter:description" content="Accents de phrase (groupes rythmiques, ˈ) et accents secondaires de mot (ˌ) pour la poésie française, par-dessus la syllabification du gem. Accents.">
+
+
+
+<script type="text/javascript">
+  var rdoc_rel_prefix = "../";
+  var index_rel_prefix = "../";
+</script>
+
+<script
+  src="../js/theme-toggle.js?v=8.1.0"
+></script>
+
+<script
+  src="../js/search_navigation.js?v=8.1.0"
+  defer
+></script>
+
+<script
+  src="../js/search_data.js?v=8.1.0"
+  defer
+></script>
+
+<script
+  src="../js/search_ranker.js?v=8.1.0"
+  defer
+></script>
+
+<script
+  src="../js/search_controller.js?v=8.1.0"
+  defer
+></script>
+
+<script
+  src="../js/c_highlighter.js?v=8.1.0"
+  defer
+></script>
+
+<script
+  src="../js/bash_highlighter.js?v=8.1.0"
+  defer
+></script>
+
+<script
+  src="../js/aliki.js?v=8.1.0"
+  defer
+></script>
+
+<link
+  href="../css/rdoc.css?v=8.1.0"
+  rel="stylesheet"
+>
+
+
+
+
+<body role="document" class="module has-toc">
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <!-- Chevron (right arrow) - used for expand/collapse -->
+  <symbol
+    id="icon-chevron"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <polyline points="9 18 15 12 9 6"></polyline>
+  </symbol>
+
+  <!-- File/Document - Pages section -->
+  <symbol
+    id="icon-file"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path
+      d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"
+    ></path>
+
+    <polyline points="14 2 14 8 20 8"></polyline>
+  </symbol>
+
+  <!-- Layers/Stack - Classes and Modules section -->
+  <symbol
+    id="icon-layers"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+    <polyline points="2 17 12 22 22 17"></polyline>
+    <polyline points="2 12 12 17 22 12"></polyline>
+  </symbol>
+
+  <!-- Curly braces with C - Class Methods section -->
+  <symbol
+    id="icon-class-methods"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M6 3C3.5 3 2 4.5 2 7v3c0 1.5-1 2-1 2s1 .5 1 2v5c0 2.5 1.5 4 4 4"></path>
+    <path d="M18 3c2.5 0 4 1.5 4 4v3c0 1.5 1 2 1 2s-1 .5-1 2v5c0 2.5-1.5 4-4 4"></path>
+
+    <text
+      x="12"
+      y="17"
+      text-anchor="middle"
+      font-size="13"
+      font-weight="bold"
+      fill="currentColor"
+      stroke="none"
+    >
+      C
+    </text>
+  </symbol>
+
+  <!-- Curly braces with I - Instance Methods section -->
+  <symbol
+    id="icon-instance-methods"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M6 3C3.5 3 2 4.5 2 7v3c0 1.5-1 2-1 2s1 .5 1 2v5c0 2.5 1.5 4 4 4"></path>
+    <path d="M18 3c2.5 0 4 1.5 4 4v3c0 1.5 1 2 1 2s-1 .5-1 2v5c0 2.5-1.5 4-4 4"></path>
+
+    <text
+      x="12"
+      y="17"
+      text-anchor="middle"
+      font-size="13"
+      font-weight="bold"
+      fill="currentColor"
+      stroke="none"
+    >
+      I
+    </text>
+  </symbol>
+
+  <!-- Double chevrons up - Ancestors section -->
+  <symbol
+    id="icon-ancestors"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <polyline points="17 11 12 6 7 11"></polyline>
+    <polyline points="17 18 12 13 7 18"></polyline>
+  </symbol>
+
+  <!-- User with plus - Included Modules section -->
+  <symbol
+    id="icon-includes"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+    <circle cx="8.5" cy="7" r="4"></circle>
+
+    <line
+      x1="20"
+      y1="8"
+      x2="20"
+      y2="14"
+    ></line>
+
+    <line
+      x1="23"
+      y1="11"
+      x2="17"
+      y2="11"
+    ></line>
+  </symbol>
+
+  <!-- User with check - Extended Modules section -->
+  <symbol
+    id="icon-extends"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+    <circle cx="8.5" cy="7" r="4"></circle>
+    <polyline points="17 11 19 13 23 9"></polyline>
+  </symbol>
+
+  <!-- List - Sections section -->
+  <symbol
+    id="icon-list"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <line
+      x1="8"
+      y1="6"
+      x2="21"
+      y2="6"
+    ></line>
+
+    <line
+      x1="8"
+      y1="12"
+      x2="21"
+      y2="12"
+    ></line>
+
+    <line
+      x1="8"
+      y1="18"
+      x2="21"
+      y2="18"
+    ></line>
+
+    <line
+      x1="3"
+      y1="6"
+      x2="3.01"
+      y2="6"
+    ></line>
+
+    <line
+      x1="3"
+      y1="12"
+      x2="3.01"
+      y2="12"
+    ></line>
+
+    <line
+      x1="3"
+      y1="18"
+      x2="3.01"
+      y2="18"
+    ></line>
+  </symbol>
+</svg>
+
+<header class="top-navbar">
+  <a href="../index.html" class="navbar-brand">
+    RDoc Documentation
+  </a>
+
+  <div class="navbar-search" data-search-container>
+    <button id="search-toggle" class="navbar-search-mobile" aria-label="Open search"
+            aria-controls="search-surface" aria-expanded="false" type="button">
+      <span aria-hidden="true">🔍</span>
+    </button>
+
+    <div class="search-backdrop" data-search-close></div>
+    <div id="search-surface" class="search-surface">
+      <form class="search-form" role="search" action="#" method="get" accept-charset="utf-8">
+        <span class="search-icon" aria-hidden="true">🔍</span>
+        <input id="search-field" role="combobox" aria-label="Search"
+               aria-autocomplete="list" aria-controls="search-results"
+               type="text" name="search" placeholder="Search (/) for a class, method..."
+               spellcheck="false" autocomplete="off"
+               title="Type to search, Up and Down to navigate, Enter to load">
+        <button type="button" class="search-close" aria-label="Close search" data-search-close>
+          <span aria-hidden="true">esc</span>
+        </button>
+      </form>
+
+      <div class="search-body">
+        <ul id="search-results" aria-label="Search Results"
+            aria-busy="false" aria-expanded="false"
+            aria-atomic="false" class="initially-hidden search-results"></ul>
+        <div class="search-empty">
+          <p>No recent searches</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Theme toggle button -->
+  <button id="theme-toggle" class="theme-toggle" aria-label="Switch to dark mode" type="button">
+    <span class="theme-toggle-icon" aria-hidden="true">🌙</span>
+  </button>
+</header>
+
+<div id="sidebar-navigation-toggle" role="button" tabindex="0" aria-label="Toggle sidebar" aria-expanded="false" aria-controls="sidebar-navigation">
+  <span aria-hidden="true">&#9776;</span>
+</div>
+
+
+<nav id="sidebar-navigation" role="navigation" hidden>
+  
+
+
+
+
+  <div id="fileindex-section" class="nav-section">
+    <details class="nav-section-collapsible" >
+      <summary class="nav-section-header">
+        <span class="nav-section-icon">
+          <svg>
+            <use href="#icon-file"></use>
+          </svg>
+        </span>
+
+        <span class="nav-section-title">Pages</span>
+
+        <span class="nav-section-chevron">
+          <svg>
+            <use href="#icon-chevron"></use>
+          </svg>
+        </span>
+      </summary>
+
+      <ul class="nav-list">
+
+
+
+
+
+
+            <li>
+              <a href="../CHANGELOG_md.html">
+                CHANGELOG
+              </a>
+            </li>
+
+
+
+
+            <li>
+              <a href="../docs/scansion_rules_txt.html">
+                scansion_rules
+              </a>
+            </li>
+
+      </ul>
+    </details>
+  </div>
+
+
+  
+
+  
+
+  
+
+  
+
+  
+  <div class="nav-section">
+    <details class="nav-section-collapsible" open>
+      <summary class="nav-section-header">
+        <span class="nav-section-icon">
+          <svg><use href="#icon-class-methods"></use></svg>
+        </span>
+        <span class="nav-section-title">Class Methods</span>
+        <span class="nav-section-chevron">
+          <svg><use href="#icon-chevron"></use></svg>
+        </span>
+      </summary>
+      <ul class="nav-list" role="directory">
+
+        <li ><a href="#method-c-analyze_line">analyze_line</a></li>
+
+        <li ><a href="#method-c-analyze_lines">analyze_lines</a></li>
+
+        <li ><a href="#method-c-boundary_before-3F">boundary_before?</a></li>
+
+        <li ><a href="#method-c-finite_verb_head-3F">finite_verb_head?</a></li>
+
+        <li ><a href="#method-c-head_of">head_of</a></li>
+
+      </ul>
+    </details>
+  </div>
+
+
+
+
+  <div id="classindex-section" class="nav-section">
+  <details class="nav-section-collapsible" open>
+    <summary class="nav-section-header">
+      <span class="nav-section-icon">
+        <svg><use href="#icon-layers"></use></svg>
+      </span>
+      <span class="nav-section-title">Classes and Modules</span>
+      <span class="nav-section-chevron">
+        <svg><use href="#icon-chevron"></use></svg>
+      </span>
+    </summary>
+
+    <ul class="link-list nav-list"><li><details open><summary><code><a href="../Scansion.html">Scansion</a></code></summary><ul class="link-list nav-list"><li><code><a href="../Scansion/Accents.html">Accents</a></code></li></ul></details></li></ul>
+  </details>
+</div>
+
+</nav>
+
+<main role="main" aria-labelledby="module-scansion-accents">
+  
+  
+    <ol role="navigation" aria-label="Breadcrumb navigation" class="breadcrumb">
+      
+      <li>
+        
+        <a href="../Scansion.html">Scansion</a><span class="separator">::</span>
+        
+      </li>
+      
+      <li>
+        
+        <span>Accents</span>
+        
+      </li>
+      
+    </ol>
+  
+
+  <span id="module-Scansion::Accents" class="legacy-anchor"></span>
+  <h1 id="module-scansion-accents" class="anchor-link module page-title">
+    <span class="page-title-kind">module</span>
+    <span class="page-title-name">Scansion::Accents</span>
+  </h1>
+
+  <section class="description">
+    
+<p><a href="Accents.html"><code>Accents</code></a> de phrase (groupes rythmiques, ˈ) et accents secondaires de mot (ˌ) pour la poésie française, par-dessus la syllabification du gem. Points d’entrée : <a href="Accents.html#method-c-analyze_line"><code>Accents.analyze_line</code></a>, <a href="Accents.html#method-c-analyze_lines"><code>Accents.analyze_lines</code></a>, Accents.word_accents. Voir le commentaire d’en-tête du fichier pour le modèle accentuel.</p>
+
+  </section>
+
+
+  <span id="5Buntitled-5D" class="legacy-anchor"></span>
+  <section class="documentation-section anchor-link">
+
+
+
+
+
+    <section class="constants-list">
+      <header>
+        <h3 id="untitled-constants"><a href="#untitled-constants">Constants</a></h3>
+      </header>
+      <dl>
+
+        <dt id="AUX">AUX</dt>
+
+        <dd>
+
+          
+        </dd>
+
+
+        <dt id="Analysis">Analysis</dt>
+
+        <dd>
+
+          <p>Résultat de l’analyse accentuelle d’un vers (voir <a href="Accents.html#method-c-analyze_line"><code>Scansion::Accents.analyze_line</code></a> / .analyze_lines) :</p>
+<ul><li>
+<p><code>text</code>         : vers d’origine ;</p>
+</li><li>
+<p><code>syllables</code>    : syllabes IPA (sans marque d’accent) ;</p>
+</li><li>
+<p><code>tokens</code>       : mots et ponctuation avec leurs indices de syllabes ;</p>
+</li><li>
+<p><code>groups</code>       : groupes rythmiques (frontière « | », accent de phrase ˈ) ;</p>
+</li><li>
+<p><code>word_accents</code> : indices des syllabes portant un accent de mot ˌ ;</p>
+</li><li>
+<p><code>warnings</code>     : avertissements (ex. pas de frontière à la césure).</p>
+</li></ul>
+        </dd>
+
+
+        <dt id="CONJS">CONJS</dt>
+
+        <dd>
+
+          
+        </dd>
+
+
+        <dt id="DETS">DETS</dt>
+
+        <dd>
+
+          
+        </dd>
+
+
+        <dt id="FUNCTION_WORDS">FUNCTION_WORDS</dt>
+
+        <dd>
+
+          
+        </dd>
+
+
+        <dt id="GLIDES">GLIDES</dt>
+
+        <dd>
+
+          
+        </dd>
+
+
+        <dt id="Group">Group</dt>
+
+        <dd>
+
+          
+        </dd>
+
+
+        <dt id="INDEF">INDEF</dt>
+
+        <dd>
+
+          <p>pronoms indéfinis seuls : ils ouvrent un groupe (« qu’amer » | « aucun s’efface »)</p>
+        </dd>
+
+
+        <dt id="PREPS">PREPS</dt>
+
+        <dd>
+
+          <p>Classes de mots fonctionnels (sans accent propre). Un groupe rythmique se termine à la frontière devant certains d’entre eux (voir boundary_before?). « en » est retiré de <a href="Accents.html#PREPS"><code>PREPS</code></a> : pronom (« en finir » ne ouvre pas de groupe), il reste dans <a href="Accents.html#PRONS"><code>PRONS</code></a>. Comme préposition (« en ville ») il ne forcera plus de frontière — compromis accepté (le groupe verbal l’absorbe).</p>
+        </dd>
+
+
+        <dt id="PRONS">PRONS</dt>
+
+        <dd>
+
+          
+        </dd>
+
+
+        <dt id="PUNCT_RE">PUNCT_RE</dt>
+
+        <dd>
+
+          
+        </dd>
+
+
+        <dt id="SCAN_RE">SCAN_RE</dt>
+
+        <dd>
+
+          <p>Word token: Unicode word chars plus apostrophes (elisions: l’amour) and internal hyphens (porte-parapluie).</p>
+        </dd>
+
+
+        <dt id="SCHWA">SCHWA</dt>
+
+        <dd>
+
+          
+        </dd>
+
+
+        <dt id="Token">Token</dt>
+
+        <dd>
+
+          <p>keyword_init structs take keyword arguments only.</p>
+        </dd>
+
+
+        <dt id="VOWELS">VOWELS</dt>
+
+        <dd>
+
+          <p>Characters treated as vocalic when looking for a syllable nucleus (incl. nasal vowels, which espeak writes as vowel + combining tilde U+0303).</p>
+        </dd>
+
+
+      </dl>
+    </section>
+
+
+
+
+
+
+
+
+     <section id="public-class-untitled-method-details" class="method-section anchor-link">
+       <header>
+         <h3 id="public-class-untitled-methods"><a href="#public-class-untitled-methods">Public Class Methods</a></h3>
+       </header>
+
+
+      <div id="method-c-analyze_line" class="method-detail anchor-link ">
+        <div class="method-header">
+          <div class="method-heading-group">
+
+              <div class="method-heading">
+                <a href="#method-c-analyze_line" title="Link to this method">
+                  <span class="method-name">analyze_line</span>
+                  <span class="method-args">(text, dierese: :auto)</span>
+                </a>
+              </div>
+
+
+
+          </div>
+
+
+            <div class="method-controls">
+              <details class="method-source-toggle">
+                <summary><span class="method-source-icon" aria-hidden="true">{}</span> Source</summary>
+              </details>
+            </div>
+
+        </div>
+
+
+          <div class="method-source-code" id="analyze_line-source">
+            <pre class="ruby"><span class="ruby-comment"># File lib/scansion/accents.rb, line 138</span>
+<span class="ruby-keyword">def</span> <span class="ruby-identifier">analyze_line</span>(<span class="ruby-identifier">text</span>, <span class="ruby-value">dierese:</span> <span class="ruby-value">:</span><span class="ruby-value">auto</span>)
+  <span class="ruby-identifier">analyze_result</span>(<span class="ruby-constant">Scansion</span>.<span class="ruby-identifier">process_line</span>(<span class="ruby-identifier">text</span>, <span class="ruby-value">dierese</span><span class="ruby-value">:</span> <span class="ruby-identifier">dierese</span>), <span class="ruby-identifier">text</span>)
+<span class="ruby-keyword">end</span></pre>
+          </div>
+
+
+
+        <div class="method-description">
+
+
+          <p>Analyse accentuelle d’un seul vers. @param text [String] le vers @param dierese [Boolean, Symbol] voir <a href="../Scansion.html#method-c-process_line"><code>Scansion.process_line</code></a> @return [Scansion::Accents::Analysis]</p>
+
+
+        </div>
+
+
+
+
+
+      </div>
+
+
+      <div id="method-c-analyze_lines" class="method-detail anchor-link ">
+        <div class="method-header">
+          <div class="method-heading-group">
+
+              <div class="method-heading">
+                <a href="#method-c-analyze_lines" title="Link to this method">
+                  <span class="method-name">analyze_lines</span>
+                  <span class="method-args">(lines, dierese: :auto)</span>
+                </a>
+              </div>
+
+
+
+          </div>
+
+
+            <div class="method-controls">
+              <details class="method-source-toggle">
+                <summary><span class="method-source-icon" aria-hidden="true">{}</span> Source</summary>
+              </details>
+            </div>
+
+        </div>
+
+
+          <div class="method-source-code" id="analyze_lines-source">
+            <pre class="ruby"><span class="ruby-comment"># File lib/scansion/accents.rb, line 125</span>
+<span class="ruby-keyword">def</span> <span class="ruby-identifier">analyze_lines</span>(<span class="ruby-identifier">lines</span>, <span class="ruby-value">dierese:</span> <span class="ruby-value">:</span><span class="ruby-value">auto</span>)
+  <span class="ruby-identifier">results</span> = <span class="ruby-keyword">begin</span>
+    <span class="ruby-constant">Scansion</span>.<span class="ruby-identifier">process_lines</span>(<span class="ruby-identifier">lines</span>, <span class="ruby-value">dierese</span><span class="ruby-value">:</span> <span class="ruby-identifier">dierese</span>)
+  <span class="ruby-keyword">rescue</span> <span class="ruby-constant">StandardError</span>
+    <span class="ruby-identifier">lines</span>.<span class="ruby-identifier">map</span> { <span class="ruby-operator">|</span><span class="ruby-identifier">l</span><span class="ruby-operator">|</span> <span class="ruby-constant">Scansion</span>.<span class="ruby-identifier">process_line</span>(<span class="ruby-identifier">l</span>, <span class="ruby-value">dierese</span><span class="ruby-value">:</span> <span class="ruby-identifier">dierese</span>) }
+  <span class="ruby-keyword">end</span>
+  <span class="ruby-identifier">results</span>.<span class="ruby-identifier">zip</span>(<span class="ruby-identifier">lines</span>).<span class="ruby-identifier">map</span> { <span class="ruby-operator">|</span><span class="ruby-identifier">res</span>, <span class="ruby-identifier">text</span><span class="ruby-operator">|</span> <span class="ruby-identifier">analyze_result</span>(<span class="ruby-identifier">res</span>, <span class="ruby-identifier">text</span>) }
+<span class="ruby-keyword">end</span></pre>
+          </div>
+
+
+
+        <div class="method-description">
+
+
+          <p>Analyse accentuelle d’un poème entier (syllabification via <a href="../Scansion.html#method-c-process_lines"><code>Scansion.process_lines</code></a>, puis groupes rythmiques et accents de mot). @param lines [Array&lt;String&gt;] les vers @param dierese [Boolean, Symbol] voir <a href="../Scansion.html#method-c-process_line"><code>Scansion.process_line</code></a> @return [Array&lt;Scansion::Accents::Analysis&gt;]</p>
+
+
+        </div>
+
+
+
+
+
+      </div>
+
+
+      <div id="method-c-boundary_before-3F" class="method-detail anchor-link ">
+        <div class="method-header">
+          <div class="method-heading-group">
+
+              <div class="method-heading">
+                <a href="#method-c-boundary_before-3F" title="Link to this method">
+                  <span class="method-name">boundary_before?</span>
+                  <span class="method-args">(tokens, i)</span>
+                </a>
+              </div>
+
+
+
+          </div>
+
+
+            <div class="method-controls">
+              <details class="method-source-toggle">
+                <summary><span class="method-source-icon" aria-hidden="true">{}</span> Source</summary>
+              </details>
+            </div>
+
+        </div>
+
+
+          <div class="method-source-code" id="boundary_before-3F-source">
+            <pre class="ruby"><span class="ruby-comment"># File lib/scansion/accents.rb, line 174</span>
+<span class="ruby-keyword">def</span> <span class="ruby-identifier">boundary_before?</span>(<span class="ruby-identifier">tokens</span>, <span class="ruby-identifier">i</span>)
+  <span class="ruby-identifier">tok</span> = <span class="ruby-identifier">tokens</span>[<span class="ruby-identifier">i</span>]
+  <span class="ruby-keyword">return</span> <span class="ruby-keyword">false</span> <span class="ruby-keyword">unless</span> <span class="ruby-identifier">tok</span>.<span class="ruby-identifier">kind</span> <span class="ruby-operator">==</span> <span class="ruby-value">:</span><span class="ruby-value">word</span>
+  <span class="ruby-keyword">return</span> <span class="ruby-keyword">false</span> <span class="ruby-keyword">if</span> <span class="ruby-identifier">i</span>.<span class="ruby-identifier">zero?</span>
+  <span class="ruby-identifier">pcs</span> = <span class="ruby-identifier">pieces</span>(<span class="ruby-identifier">tok</span>)
+  <span class="ruby-identifier">head</span> = <span class="ruby-identifier">head_of</span>(<span class="ruby-identifier">tok</span>).<span class="ruby-identifier">to_s</span> <span class="ruby-comment"># saute les fragments clitiques (c&#39;est -&gt; est)</span>
+  <span class="ruby-identifier">last</span> = <span class="ruby-identifier">pcs</span>.<span class="ruby-identifier">last</span>.<span class="ruby-identifier">to_s</span>.<span class="ruby-identifier">downcase</span>
+  <span class="ruby-identifier">nxt</span> = <span class="ruby-identifier">tokens</span>[<span class="ruby-identifier">i</span> <span class="ruby-operator">+</span> <span class="ruby-value">1</span>]
+  <span class="ruby-identifier">nxt_head</span> = <span class="ruby-identifier">nxt</span> <span class="ruby-operator">?</span> <span class="ruby-identifier">head_of</span>(<span class="ruby-identifier">nxt</span>) <span class="ruby-operator">:</span> <span class="ruby-keyword">nil</span>
+  <span class="ruby-identifier">prev</span> = <span class="ruby-identifier">tokens</span>[<span class="ruby-identifier">i</span> <span class="ruby-operator">-</span> <span class="ruby-value">1</span>]
+  <span class="ruby-identifier">prev_head</span> = <span class="ruby-identifier">prev</span> <span class="ruby-operator">?</span> <span class="ruby-identifier">head_of</span>(<span class="ruby-identifier">prev</span>) <span class="ruby-operator">:</span> <span class="ruby-keyword">nil</span>
+  <span class="ruby-identifier">prev2</span> = <span class="ruby-identifier">i</span> &gt;= <span class="ruby-value">2</span> <span class="ruby-operator">?</span> <span class="ruby-identifier">tokens</span>[<span class="ruby-identifier">i</span> <span class="ruby-operator">-</span> <span class="ruby-value">2</span>] <span class="ruby-operator">:</span> <span class="ruby-keyword">nil</span> <span class="ruby-comment"># pas d&#39;index négatif !</span>
+  <span class="ruby-identifier">prev2_head</span> = <span class="ruby-identifier">prev2</span> <span class="ruby-operator">?</span> <span class="ruby-identifier">head_of</span>(<span class="ruby-identifier">prev2</span>) <span class="ruby-operator">:</span> <span class="ruby-keyword">nil</span>
+
+  <span class="ruby-keyword">return</span> <span class="ruby-keyword">true</span> <span class="ruby-keyword">if</span> <span class="ruby-identifier">pcs</span>.<span class="ruby-identifier">size</span> <span class="ruby-operator">==</span> <span class="ruby-value">1</span> <span class="ruby-operator">&amp;&amp;</span> <span class="ruby-constant">INDEF</span>.<span class="ruby-identifier">key?</span>(<span class="ruby-identifier">head</span>) <span class="ruby-comment"># aucun, tout, autre… seuls</span>
+  <span class="ruby-keyword">return</span> <span class="ruby-keyword">true</span> <span class="ruby-keyword">if</span> <span class="ruby-constant">CONJS</span>.<span class="ruby-identifier">key?</span>(<span class="ruby-identifier">head</span>) <span class="ruby-operator">||</span> <span class="ruby-constant">CONJS</span>.<span class="ruby-identifier">key?</span>(<span class="ruby-identifier">last</span>)
+  <span class="ruby-keyword">return</span> <span class="ruby-keyword">true</span> <span class="ruby-keyword">if</span> <span class="ruby-constant">AUX</span>.<span class="ruby-identifier">key?</span>(<span class="ruby-identifier">last</span>) <span class="ruby-comment"># n&#39;est, est, a…</span>
+  <span class="ruby-comment"># « en » : pronom devant un verbe à l&#39;infinitif ou un nom (« en finir »</span>
+  <span class="ruby-comment"># ne coupe pas), préposition devant un déterminant (« en ta toison »</span>
+  <span class="ruby-comment"># coupe)</span>
+  <span class="ruby-keyword">if</span> <span class="ruby-identifier">head</span> <span class="ruby-operator">==</span> <span class="ruby-string">&quot;</span><span class="ruby-string">en</span><span class="ruby-string">&quot;</span>
+    <span class="ruby-keyword">return</span> <span class="ruby-identifier">nxt_head</span> <span class="ruby-operator">&amp;&amp;</span> <span class="ruby-constant">DETS</span>.<span class="ruby-identifier">key?</span>(<span class="ruby-identifier">nxt_head</span>) <span class="ruby-operator">?</span> <span class="ruby-keyword">true</span> <span class="ruby-operator">:</span> <span class="ruby-keyword">false</span>
+  <span class="ruby-keyword">end</span>
+  <span class="ruby-keyword">if</span> <span class="ruby-constant">PREPS</span>.<span class="ruby-identifier">key?</span>(<span class="ruby-identifier">head</span>)
+    <span class="ruby-comment"># « d&#39;ange » (de + nom nu soudé) ou « de ange » : pas de frontière</span>
+    <span class="ruby-keyword">return</span> <span class="ruby-keyword">false</span> <span class="ruby-keyword">if</span> <span class="ruby-string">%w[</span><span class="ruby-string">de</span> <span class="ruby-string">d</span><span class="ruby-string">]</span>.<span class="ruby-identifier">include?</span>(<span class="ruby-identifier">head</span>) <span class="ruby-operator">&amp;&amp;</span> <span class="ruby-identifier">pcs</span>.<span class="ruby-identifier">size</span> <span class="ruby-operator">&gt;</span> <span class="ruby-value">1</span>
+    <span class="ruby-keyword">if</span> <span class="ruby-string">%w[</span><span class="ruby-string">de</span> <span class="ruby-string">d</span><span class="ruby-string">]</span>.<span class="ruby-identifier">include?</span>(<span class="ruby-identifier">head</span>) <span class="ruby-operator">&amp;&amp;</span> <span class="ruby-identifier">nxt_head</span> <span class="ruby-operator">&amp;&amp;</span> <span class="ruby-operator">!</span><span class="ruby-constant">DETS</span>.<span class="ruby-identifier">key?</span>(<span class="ruby-identifier">nxt_head</span>)
+      <span class="ruby-keyword">return</span> <span class="ruby-keyword">false</span>
+    <span class="ruby-keyword">end</span>
+    <span class="ruby-keyword">return</span> <span class="ruby-keyword">true</span>
+  <span class="ruby-keyword">end</span>
+  <span class="ruby-keyword">if</span> <span class="ruby-constant">DETS</span>.<span class="ruby-identifier">key?</span>(<span class="ruby-identifier">head</span>)
+    <span class="ruby-comment"># le déterminant appartient au syntagme précédent (« que le fond »,</span>
+    <span class="ruby-comment"># « sans l&#39;accuser ») si le mot d&#39;avant est fonctionnel</span>
+    <span class="ruby-keyword">return</span> <span class="ruby-keyword">false</span> <span class="ruby-keyword">if</span> <span class="ruby-identifier">prev_head</span> <span class="ruby-operator">&amp;&amp;</span> <span class="ruby-constant">FUNCTION_WORDS</span>.<span class="ruby-identifier">key?</span>(<span class="ruby-identifier">prev_head</span>)
+    <span class="ruby-comment"># après un verbe fini, le COD reste dans le groupe verbal</span>
+    <span class="ruby-comment"># (« font un reflet », « fondra la mer »)</span>
+    <span class="ruby-keyword">return</span> <span class="ruby-keyword">false</span> <span class="ruby-keyword">if</span> <span class="ruby-identifier">prev</span>.<span class="ruby-identifier">kind</span> <span class="ruby-operator">==</span> <span class="ruby-value">:</span><span class="ruby-value">word</span> <span class="ruby-operator">&amp;&amp;</span> <span class="ruby-identifier">finite_verb_head?</span>(<span class="ruby-identifier">prev_head</span>)
+    <span class="ruby-comment"># « du/des » (génitif) collé à une PP (« à partir du col ») : pas de</span>
+    <span class="ruby-comment"># frontière ; un article plein (« les escrocs » après « l’ombre ») ouvre</span>
+    <span class="ruby-comment"># bien un nouveau syntagme</span>
+    <span class="ruby-keyword">return</span> <span class="ruby-keyword">false</span> <span class="ruby-keyword">if</span> <span class="ruby-string">%w[</span><span class="ruby-string">du</span> <span class="ruby-string">des</span><span class="ruby-string">]</span>.<span class="ruby-identifier">include?</span>(<span class="ruby-identifier">head</span>) <span class="ruby-operator">&amp;&amp;</span> <span class="ruby-identifier">prev2_head</span> <span class="ruby-operator">&amp;&amp;</span> <span class="ruby-constant">PREPS</span>.<span class="ruby-identifier">key?</span>(<span class="ruby-identifier">prev2_head</span>.<span class="ruby-identifier">to_s</span>)
+    <span class="ruby-keyword">return</span> <span class="ruby-keyword">true</span>
+  <span class="ruby-keyword">end</span>
+  <span class="ruby-comment"># participe passé / adjectif verbal en -é/-i/-u après un mot PLEIN :</span>
+  <span class="ruby-comment"># il ouvre un nouveau groupe (« la date | choisie »), sauf nom propre</span>
+  <span class="ruby-comment"># capitalisé (« le dogue Liberté »). Les verbes finis restent avec leur</span>
+  <span class="ruby-comment"># sujet (« mes pères criaient » -&gt; un seul groupe).</span>
+  <span class="ruby-keyword">if</span> <span class="ruby-identifier">prev_head</span> <span class="ruby-operator">&amp;&amp;</span> <span class="ruby-identifier">prev</span>.<span class="ruby-identifier">kind</span> <span class="ruby-operator">==</span> <span class="ruby-value">:</span><span class="ruby-value">word</span> <span class="ruby-operator">&amp;&amp;</span> <span class="ruby-operator">!</span><span class="ruby-constant">FUNCTION_WORDS</span>.<span class="ruby-identifier">key?</span>(<span class="ruby-identifier">prev_head</span>) <span class="ruby-operator">&amp;&amp;</span>
+     <span class="ruby-operator">!</span><span class="ruby-identifier">finite_verb_head?</span>(<span class="ruby-identifier">prev_head</span>) <span class="ruby-operator">&amp;&amp;</span>
+     <span class="ruby-identifier">tok</span>.<span class="ruby-identifier">surface</span>[<span class="ruby-value">0</span>] <span class="ruby-operator">==</span> <span class="ruby-identifier">tok</span>.<span class="ruby-identifier">surface</span>[<span class="ruby-value">0</span>].<span class="ruby-identifier">downcase</span> <span class="ruby-operator">&amp;&amp;</span>
+     <span class="ruby-identifier">head</span>.<span class="ruby-identifier">match?</span>(<span class="ruby-regexp">/(?:é|ée|és|ées|i|ie|is|ies|u|ue|us|ues|it|ît)s?\z/</span>)
+    <span class="ruby-keyword">return</span> <span class="ruby-keyword">true</span>
+  <span class="ruby-keyword">end</span>
+  <span class="ruby-keyword">false</span>
+<span class="ruby-keyword">end</span></pre>
+          </div>
+
+
+
+        <div class="method-description">
+
+
+          
+
+
+        </div>
+
+
+
+
+
+      </div>
+
+
+      <div id="method-c-finite_verb_head-3F" class="method-detail anchor-link ">
+        <div class="method-header">
+          <div class="method-heading-group">
+
+              <div class="method-heading">
+                <a href="#method-c-finite_verb_head-3F" title="Link to this method">
+                  <span class="method-name">finite_verb_head?</span>
+                  <span class="method-args">(head)</span>
+                </a>
+              </div>
+
+
+
+          </div>
+
+
+            <div class="method-controls">
+              <details class="method-source-toggle">
+                <summary><span class="method-source-icon" aria-hidden="true">{}</span> Source</summary>
+              </details>
+            </div>
+
+        </div>
+
+
+          <div class="method-source-code" id="finite_verb_head-3F-source">
+            <pre class="ruby"><span class="ruby-comment"># File lib/scansion/accents.rb, line 170</span>
+<span class="ruby-keyword">def</span> <span class="ruby-identifier">finite_verb_head?</span>(<span class="ruby-identifier">head</span>)
+  <span class="ruby-operator">!</span><span class="ruby-identifier">head</span>.<span class="ruby-identifier">nil?</span> <span class="ruby-operator">&amp;&amp;</span> <span class="ruby-identifier">head</span>.<span class="ruby-identifier">match?</span>(<span class="ruby-constant">FINITE_VERB_END</span>)
+<span class="ruby-keyword">end</span></pre>
+          </div>
+
+
+
+        <div class="method-description">
+
+
+          
+
+
+        </div>
+
+
+
+
+
+      </div>
+
+
+      <div id="method-c-head_of" class="method-detail anchor-link ">
+        <div class="method-header">
+          <div class="method-heading-group">
+
+              <div class="method-heading">
+                <a href="#method-c-head_of" title="Link to this method">
+                  <span class="method-name">head_of</span>
+                  <span class="method-args">(tok)</span>
+                </a>
+              </div>
+
+
+
+          </div>
+
+
+            <div class="method-controls">
+              <details class="method-source-toggle">
+                <summary><span class="method-source-icon" aria-hidden="true">{}</span> Source</summary>
+              </details>
+            </div>
+
+        </div>
+
+
+          <div class="method-source-code" id="head_of-source">
+            <pre class="ruby"><span class="ruby-comment"># File lib/scansion/accents.rb, line 151</span>
+<span class="ruby-keyword">def</span> <span class="ruby-identifier">head_of</span>(<span class="ruby-identifier">tok</span>)
+  <span class="ruby-keyword">return</span> <span class="ruby-keyword">nil</span> <span class="ruby-keyword">unless</span> <span class="ruby-identifier">tok</span>.<span class="ruby-identifier">kind</span> <span class="ruby-operator">==</span> <span class="ruby-value">:</span><span class="ruby-value">word</span>
+  <span class="ruby-identifier">pcs</span> = <span class="ruby-identifier">pieces</span>(<span class="ruby-identifier">tok</span>).<span class="ruby-identifier">map</span> { <span class="ruby-operator">|</span><span class="ruby-identifier">p</span><span class="ruby-operator">|</span> <span class="ruby-identifier">p</span>.<span class="ruby-identifier">downcase</span> }
+  <span class="ruby-identifier">pcs</span>.<span class="ruby-identifier">find</span> { <span class="ruby-operator">|</span><span class="ruby-identifier">p</span><span class="ruby-operator">|</span> <span class="ruby-operator">!</span><span class="ruby-constant">CLITIC_FRAGMENTS</span>.<span class="ruby-identifier">include?</span>(<span class="ruby-identifier">p</span>) } <span class="ruby-operator">||</span> <span class="ruby-identifier">pcs</span>.<span class="ruby-identifier">first</span>
+<span class="ruby-keyword">end</span></pre>
+          </div>
+
+
+
+        <div class="method-description">
+
+
+          <p>tête du mot : première partie non clitique (« c’est » -&gt; « est », « l’ombre » -&gt; « ombre ») ; un mot est fonctionnel si TOUTES ses parties le sont (« n’est » -&gt; n + est)</p>
+
+
+        </div>
+
+
+
+
+
+      </div>
+
+
+    </section>
+
+
+
+
+
+
+
+
+
+
+  </section>
+
+</main>
+
+<aside id="table-of-contents" class="table-of-contents" role="complementary" aria-label="Table of Contents">
+  <div class="toc-sticky">
+    <h3 class="toc-heading">On This Page</h3>
+    <nav class="toc-nav" id="toc-nav" aria-label="Page sections">
+      <!-- Generated by JavaScript based on page headings -->
+    </nav>
+  </div>
+</aside>
+
+
+<footer class="site-footer">
+  
+
+  <div class="footer-bottom">
+    <p>
+      Generated by <a href="https://ruby.github.io/rdoc/">RDoc 8.1.0</a>
+      using the Aliki theme by <a href="http://st0012.dev">Stan Lo</a>
+    </p>
+  </div>
+</footer>
+
+</body>
+

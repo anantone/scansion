@@ -12,6 +12,12 @@
 require "open3"
 require_relative "version"
 
+# Module principal du gem scansion : scansion (syllabification) des vers
+# français — phonétisation espeak-ng via phonemizer_ffi, alignement
+# lettres/phonèmes, restauration du e muet, diérèses contextuelles et
+# comptage des syllabes. Voir docs/scansion_rules.txt pour les règles.
+# Points d'entrée : Scansion.process_line, Scansion.process_lines,
+# Scansion.espeak.
 module Scansion
   SCHWA = "ə"
 
@@ -102,6 +108,17 @@ module Scansion
   CR_E_PRONOUNCED = %w[astre battre croître entendre entre être guerre hydre
                       maître moindre œuvre ombre peindre tonnerre ventre].freeze
 
+  # Résultat de la scansion d'un vers (voir Scansion.process_line /
+  # Scansion.process_lines) :
+  # - +text+       : vers d'origine ;
+  # - +raw+        : sortie IPA brute d'espeak-ng ;
+  # - +phones+     : syllabes séparées par « - » (ex. "la-bɛl-ta-blə-ʁɔ̃d") ;
+  # - +syllables+  : nombre de syllabes comptées ;
+  # - +aligned+    : true si l'alignement lettres/phonèmes a réussi (false = repli
+  #                  sur la sortie brute d'espeak-ng, voir #fallback?) ;
+  # - +dierese+    : nombre de diérèses appliquées ;
+  # - +word_spans+ : pour chaque mot, { word:, first:, last: } = indices de ses
+  #                  syllabes dans +phones+ (nil en repli non aligné).
   Result = Struct.new(:text, :raw, :phones, :syllables, :aligned, :dierese,
                       :word_spans, keyword_init: true) do
     # true si le vers est retombé sur la sortie brute d'espeak-ng (pas d'alignement)
@@ -1272,6 +1289,13 @@ module Scansion
     # cache : Hash optionnel partagé entre appels (utilisé par process_lines)
     # pour que chaque paire (ligne, options) ne soit scannée — et espeak-ng
     # relancé — qu'une fois.
+    #
+    # @param line [String] un vers (ou une ligne de texte)
+    # @param dierese [Boolean, Symbol] false = e muet non compté devant
+    #   consonne ; true = diérèses appliquées ; :auto = re-scan contextuel
+    #   (voir ci-dessus)
+    # @param cache [Hash, nil] cache partagé optionnel
+    # @return [Scansion::Result] résultat de la scansion
     def process_line(line, dierese: false, cache: nil)
       # en mode :auto, la 1re passe garde le comptage classique de l'e muet
       # devant consonne (sinon elle pourrait tomber sur 10 et arrêter là) ;
@@ -1324,6 +1348,10 @@ module Scansion
     # Point d'entrée par lot (deux passes). Avec dierese: :auto, la diérèse
     # n'est appliquée que là où le contexte alentour est classique
     # (classical_context?) — jamais en poésie contemporaine.
+    #
+    # @param lines [Array<String>] les vers du poème
+    # @param dierese [Boolean, Symbol] voir #process_line
+    # @return [Array<Scansion::Result>] un résultat par ligne (dans l'ordre)
     def process_lines(lines, dierese: :auto)
       cache = {}
       counts = lines.map do |l|

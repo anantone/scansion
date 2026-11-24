@@ -39,6 +39,11 @@ require_relative "syllabification"
 require "phonemizer_ffi"
 
 module Scansion
+  # Accents de phrase (groupes rythmiques, ˈ) et accents secondaires de mot
+  # (ˌ) pour la poésie française, par-dessus la syllabification du gem.
+  # Points d'entrée : Accents.analyze_line, Accents.analyze_lines,
+  # Accents.word_accents. Voir le commentaire d'en-tête du fichier pour le
+  # modèle accentuel.
   module Accents
     SCHWA = "ə"
     GLIDES = "yɥ"
@@ -76,11 +81,26 @@ module Scansion
     Token = Struct.new(:surface, :kind, :first, :last, keyword_init: true) # kind: :word | :punct
     Group = Struct.new(:tokens, :accent)
 
+    # Résultat de l'analyse accentuelle d'un vers (voir
+    # Scansion::Accents.analyze_line / .analyze_lines) :
+    # - +text+         : vers d'origine ;
+    # - +syllables+    : syllabes IPA (sans marque d'accent) ;
+    # - +tokens+       : mots et ponctuation avec leurs indices de syllabes ;
+    # - +groups+       : groupes rythmiques (frontière « | », accent de phrase ˈ) ;
+    # - +word_accents+ : indices des syllabes portant un accent de mot ˌ ;
+    # - +warnings+     : avertissements (ex. pas de frontière à la césure).
     Analysis = Struct.new(:text, :syllables, :tokens, :groups, :word_accents, :warnings, keyword_init: true) do
-      def accents # accents de phrase (fin de chaque groupe rythmique)
+      # Accents de phrase (primaire, ˈ) : indice de la dernière syllabe de
+      # chaque groupe rythmique.
+      # @return [Array<Integer>]
+      def accents
         groups.filter_map(&:accent)
       end
 
+      # Transcription avec marques d'accent : « ˈ » = accent de phrase (fin de
+      # groupe, séparée par « | »), « ˌ » = accent interne de mot.
+      # Ex. « me-ˌpɛʁ-kʁi-ˈɛ |-də-su-me-ˈpje ».
+      # @return [String]
       def render
         syllables.each_with_index.map { |s, i|
           if groups.any? { |g| g.accent == i }
@@ -97,6 +117,11 @@ module Scansion
     end
 
     class << self
+      # Analyse accentuelle d'un poème entier (syllabification via
+      # Scansion.process_lines, puis groupes rythmiques et accents de mot).
+      # @param lines [Array<String>] les vers
+      # @param dierese [Boolean, Symbol] voir Scansion.process_line
+      # @return [Array<Scansion::Accents::Analysis>]
       def analyze_lines(lines, dierese: :auto)
         results = begin
           Scansion.process_lines(lines, dierese: dierese)
@@ -106,6 +131,10 @@ module Scansion
         results.zip(lines).map { |res, text| analyze_result(res, text) }
       end
 
+      # Analyse accentuelle d'un seul vers.
+      # @param text [String] le vers
+      # @param dierese [Boolean, Symbol] voir Scansion.process_line
+      # @return [Scansion::Accents::Analysis]
       def analyze_line(text, dierese: :auto)
         analyze_result(Scansion.process_line(text, dierese: dierese), text)
       end
@@ -343,6 +372,15 @@ end
         n == 12 ? 5 : (n == 8 ? 3 : nil)
       end
 
+      # Indices des syllabes portant un accent de mot (ˌ) : dernière syllabe
+      # accentuable de chaque mot plein (les mots fonctionnels n'en ont pas).
+      # Si +caesura+ est donné (indice de la syllabe de césure, ex. 5 pour un
+      # alexandrin), un mot qui chevauche la césure y concentre son accent
+      # (ictus de césure).
+      # @param tokens [Array<Token>] mots avec leurs indices de syllabes
+      # @param syls [Array<String>] syllabes IPA
+      # @param caesura [Integer, nil] indice de la syllabe de césure
+      # @return [Array<Integer>]
       def word_accents(tokens, syls, caesura = nil)
         acc = []
         tokens.each do |t|

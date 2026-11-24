@@ -1,0 +1,9 @@
+Tue, 24 Nov 2026 20:27:23 +0100
+lib/scansion.rb	Tue, 24 Nov 2026 18:59:31 +0100
+lib/scansion/accents.rb	Tue, 24 Nov 2026 19:10:47 +0100
+lib/scansion/cli.rb	Tue, 24 Nov 2026 19:09:17 +0100
+lib/scansion/syllabification.rb	Tue, 24 Nov 2026 19:10:13 +0100
+lib/scansion/version.rb	Mon, 23 Nov 2026 20:19:03 +0100
+README.md	Tue, 24 Nov 2026 17:44:19 +0100
+CHANGELOG.md	Tue, 24 Nov 2026 19:11:11 +0100
+docs/scansion_rules.txt	Tue, 24 Nov 2026 16:03:20 +0100

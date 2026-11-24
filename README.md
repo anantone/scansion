@@ -4,9 +4,7 @@ scansion
 [![Gem Version](https://badge.fury.io/rb/scansion.svg)](https://badge.fury.io/rb/scansion)
 [![Licence MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Phonétise des vers français avec [espeak-ng](https://github.com/espeak-ng/espeak-ng), puis marque les frontières de syllabes et compte les syllabes.
-
-Depuis la 1.0.0, le gem embarque aussi `Scansion::Accents` (`require "scansion/accents"`) : il calcule les **accents de phrase** (ˈ, un par groupe rythmique) et les **accents secondaires de mot** (ˌ) sur chaque vers scansionné — voir la section « Accents de phrase et accents secondaires » ci-dessous.
+Phonétise des vers français avec [espeak-ng](https://github.com/espeak-ng/espeak-ng), puis accentue et compte les syllabes.
 
 ATTENTION: PROJET EN DÉVELOPPEMENT - ne pas utiliser sans vérification
 
@@ -80,8 +78,8 @@ res.aligned                            # => true
 Scansion.process_lines(lines, dierese: :auto)
 ```
 
-Accents de phrase et accents secondaires (depuis la 1.0.0)
-----------------------------------------------------------------
+Accents de phrase et accents secondaires
+----------------------------------------
 
 `require "scansion/accents"` ajoute `Scansion::Accents`, qui calcule deux
 couches d'accentuation sur une scansion (règles de Delattre) :
