@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 #
 # accents.rb — accents de phrase (groupes rythmiques, ˈ) et accents
 # secondaires de mots (ˌ), par-dessus le gem scansion et phonemizer_ffi.
@@ -35,8 +36,8 @@
 # Corpus :
 #   Scansion::Accents.analyze_lines(File.readlines("corpus.txt", chomp: true))
 
-require_relative "syllabification"
-require "phonemizer_ffi"
+require_relative 'syllabification'
+require 'phonemizer_ffi'
 
 module Scansion
   # Accents de phrase (groupes rythmiques, ˈ) et accents secondaires de mot
@@ -45,40 +46,47 @@ module Scansion
   # Accents.word_accents. Voir le commentaire d'en-tête du fichier pour le
   # modèle accentuel.
   module Accents
-    SCHWA = "ə"
-    GLIDES = "yɥ"
+    SCHWA = 'ə'
+    GLIDES = 'yɥ'
 
     # Characters treated as vocalic when looking for a syllable nucleus
     # (incl. nasal vowels, which espeak writes as vowel + combining tilde U+0303).
-    VOWELS = "aeiouyɑɛɔøœəãẽĩõũ\u0303"
+    VOYELLES = "aeiouyɑɛɔøœəãẽĩõũ\u0303"
 
-    PUNCT_RE = /\A[,;:.!?…—–«»]\z/
+    REGEXP_PONCTUATION = /\A[,;:.!?…—–«»]\z/
 
     # Classes de mots fonctionnels (sans accent propre). Un groupe rythmique se
     # termine à la frontière devant certains d'entre eux (voir boundary_before?).
-    # « en » est retiré de PREPS : pronom (« en finir » ne ouvre pas de groupe),
-    # il reste dans PRONS. Comme préposition (« en ville ») il ne forcera plus
+    # « en » est retiré de PREPOSITIONS : pronom (« en finir » ne ouvre pas de groupe),
+    # il reste dans PRONOMS. Comme préposition (« en ville ») il ne forcera plus
     # de frontière — compromis accepté (le groupe verbal l'absorbe).
-    PREPS = %w[à au aux dans par pour sur sous vers chez sans contre entre de d
-               dessous dessus dedans dehors avant après depuis jusqu jusque malgré selon].to_h { |w| [w, true] }.freeze
-    DETS  = %w[le la les l un une du des au ce cet cette ces mon ton son ma ta mes tes ses
-               notre votre leur nos vos leurs quel quels quelle quelles
-               tout tous toute toutes].to_h { |w| [w, true] }.freeze
-    CONJS = %w[et ou mais donc or ni car que qu si quoique lorsque quand puisque].to_h { |w| [w, true] }.freeze
-    AUX   = %w[suis es est sommes êtes sont étais était étaient été
-               ai as a avons avez ont avais avait avaient eu eut].to_h { |w| [w, true] }.freeze
-    PRONS = %w[je j tu t il elle on nous vous ils elles me m te se y en leur leurs ne pas plus jamais rien qui quoi dont où lequel laquelle lesquels lesquelles].to_h { |w| [w, true] }.freeze
+    PREPOSITIONS = %w[à au aux dans par pour sur sous vers chez sans contre entre de d
+                      dessous dessus dedans dehors avant après depuis jusqu jusque malgré selon].to_h do |w|
+      [w,
+       true]
+    end.freeze
+    DETERMINANTS = %w[le la les l un une du des au ce cet cette ces mon ton son ma ta mes tes ses
+                      notre votre leur nos vos leurs quel quels quelle quelles
+                      tout tous toute toutes].to_h { |w| [w, true] }.freeze
+    CONJONCTIONS = %w[et ou mais donc or ni car que qu si quoique lorsque quand puisque].to_h { |w| [w, true] }.freeze
+    AUXILIAIRES = %w[suis es est sommes êtes sont étais était étaient été
+                     ai as a avons avez ont avais avait avaient eu eut].to_h { |w| [w, true] }.freeze
+    PRONOMS = %w[je j tu t il elle on nous vous ils elles me m te se y en leur leurs ne pas plus jamais rien qui quoi
+                 dont où lequel laquelle lesquels lesquelles].to_h do |w|
+      [w, true]
+    end.freeze
     # pronoms indéfinis seuls : ils ouvrent un groupe (« qu'amer » | « aucun s'efface »)
-    INDEF = %w[aucun aucune aucuns aucunes quelques plusieurs tout tous toute toutes
-               autre autres même mêmes chacun chacune chaque].to_h { |w| [w, true] }.freeze
-    FUNCTION_WORDS = PREPS.merge(DETS).merge(CONJS).merge(AUX).merge(PRONS).merge(INDEF).freeze
+    INDEFINIS = %w[aucun aucune aucuns aucunes quelques plusieurs tout tous toute toutes
+                   autre autres même mêmes chacun chacune chaque].to_h { |w| [w, true] }.freeze
+    MOTS_FONCTIONNELS = PREPOSITIONS.merge(DETERMINANTS).merge(CONJONCTIONS)
+                                    .merge(AUXILIAIRES).merge(PRONOMS).merge(INDEFINIS).freeze
 
     # Word token: Unicode word chars plus apostrophes (elisions: l'amour) and
     # internal hyphens (porte-parapluie).
-    SCAN_RE  = /[\p{Word}'’-]+|[,;:.!?…—–«»"]/
+    REGEXP_MOTS = /[\p{Word}'’-]+|[,;:.!?…—–«»"]/
 
     # keyword_init structs take keyword arguments only.
-    Token = Struct.new(:surface, :kind, :first, :last, keyword_init: true) # kind: :word | :punct
+    Token = Struct.new(:surface, :kind, :debut, :fin, keyword_init: true) # kind: :word | :punct
     Group = Struct.new(:tokens, :accent)
 
     # Résultat de l'analyse accentuelle d'un vers (voir
@@ -102,17 +110,17 @@ module Scansion
       # Ex. « me-ˌpɛʁ-kʁi-ˈɛ |-də-su-me-ˈpje ».
       # @return [String]
       def render
-        syllables.each_with_index.map { |s, i|
-          if groups.any? { |g| g.accent == i }
-            marked = "ˈ#{s}" # accent de phrase (primaire)
-          elsif word_accents.to_a.include?(i)
-            marked = "ˌ#{s}" # accent interne du mot (secondaire)
-          else
-            marked = s
-          end
-          boundary = groups.any? { |g| g.tokens.last && g.tokens.last.last == i }
+        syllables.each_with_index.map do |s, i|
+          marked = if groups.any? { |g| g.accent == i }
+                     "ˈ#{s}" # accent de phrase (primaire)
+                   elsif word_accents.to_a.include?(i)
+                     "ˌ#{s}" # accent interne du mot (secondaire)
+                   else
+                     s
+                   end
+          boundary = groups.any? { |g| g.tokens.last&.fin == i }
           boundary ? "#{marked} |" : marked
-        }.join("-").sub(/ \|$/, "")
+        end.join('-').sub(/ \|$/, '')
       end
     end
 
@@ -143,15 +151,16 @@ module Scansion
       # du mot est la première partie qui n'est pas un fragment — « c'est » ->
       # est (auxiliaire, fonctionnel), « l'ombre » -> ombre (nom, PAS le
       # déterminant « l »), « n'est » -> est.
-      CLITIC_FRAGMENTS = %w[c d j l m n s t].freeze
+      FRAGMENTS_CLITIQUES = %w[c d j l m n s t].freeze
 
       # tête du mot : première partie non clitique (« c'est » -> « est »,
       # « l'ombre » -> « ombre ») ; un mot est fonctionnel si TOUTES ses
       # parties le sont (« n'est » -> n + est)
       def head_of(tok)
         return nil unless tok.kind == :word
-        pcs = pieces(tok).map { |p| p.downcase }
-        pcs.find { |p| !CLITIC_FRAGMENTS.include?(p) } || pcs.first
+
+        pcs = pieces(tok).map(&:downcase)
+        pcs.find { |p| !FRAGMENTS_CLITIQUES.include?(p) } || pcs.first
       end
 
       # Une frontière de groupe AVANT tokens[i] (mot) :
@@ -160,85 +169,86 @@ module Scansion
       #  - préposition, sauf « de/d' + nom nu » (complément : « peau d'ange ») -> oui
       #  - déterminant qui OUVRE un nouveau syntagme, sauf si le mot
       #    précédent est fonctionnel ou une préposition (PP : « à partir du col »)
-# fin de verbe fini (heuristique sans POS) : -ont, -ez, -ons, -ais, -ait,
-# -ai/-as/-a, -is/-it/-ît, -e. Un déterminant après un verbe fini reste
-# dans le groupe verbal (« font un reflet », « fondra la mer ») ; après
-# un participe ou un nom, il ouvre un nouveau syntagme (« ciselant | le
-# cristal », « l'ombre | les escrocs »).
-FINITE_VERB_END = /(?:ont|ez|ons|ais|aient|ait|ai|as|a|is|it|ît)\z/.freeze
+      # fin de verbe fini (heuristique sans POS) : -ont, -ez, -ons, -ais, -ait,
+      # -ai/-as/-a, -is/-it/-ît, -e. Un déterminant après un verbe fini reste
+      # dans le groupe verbal (« font un reflet », « fondra la mer ») ; après
+      # un participe ou un nom, il ouvre un nouveau syntagme (« ciselant | le
+      # cristal », « l'ombre | les escrocs »).
+      TERMINAISONS_VERBE_FINI = /(?:ont|ez|ons|ais|aient|ait|ai|as|a|is|it|ît)\z/
 
-def finite_verb_head?(head)
-  !head.nil? && head.match?(FINITE_VERB_END)
-end
+      def finite_verb_head?(head)
+        !head.nil? && head.match?(TERMINAISONS_VERBE_FINI)
+      end
 
-def boundary_before?(tokens, i)
-  tok = tokens[i]
-  return false unless tok.kind == :word
-  return false if i.zero?
-  pcs = pieces(tok)
-  head = head_of(tok).to_s # saute les fragments clitiques (c'est -> est)
-  last = pcs.last.to_s.downcase
-  nxt = tokens[i + 1]
-  nxt_head = nxt ? head_of(nxt) : nil
-  prev = tokens[i - 1]
-  prev_head = prev ? head_of(prev) : nil
-  prev2 = i >= 2 ? tokens[i - 2] : nil # pas d'index négatif !
-  prev2_head = prev2 ? head_of(prev2) : nil
+      def boundary_before?(tokens, i)
+        tok = tokens[i]
+        return false unless tok.kind == :word
+        return false if i.zero?
 
-  return true if pcs.size == 1 && INDEF.key?(head) # aucun, tout, autre… seuls
-  return true if CONJS.key?(head) || CONJS.key?(last)
-  return true if AUX.key?(last) # n'est, est, a…
-  # « en » : pronom devant un verbe à l'infinitif ou un nom (« en finir »
-  # ne coupe pas), préposition devant un déterminant (« en ta toison »
-  # coupe)
-  if head == "en"
-    return nxt_head && DETS.key?(nxt_head) ? true : false
-  end
-  if PREPS.key?(head)
-    # « d'ange » (de + nom nu soudé) ou « de ange » : pas de frontière
-    return false if %w[de d].include?(head) && pcs.size > 1
-    if %w[de d].include?(head) && nxt_head && !DETS.key?(nxt_head)
-      return false
-    end
-    return true
-  end
-  if DETS.key?(head)
-    # le déterminant appartient au syntagme précédent (« que le fond »,
-    # « sans l'accuser ») si le mot d'avant est fonctionnel
-    return false if prev_head && FUNCTION_WORDS.key?(prev_head)
-    # après un verbe fini, le COD reste dans le groupe verbal
-    # (« font un reflet », « fondra la mer »)
-    return false if prev.kind == :word && finite_verb_head?(prev_head)
-    # « du/des » (génitif) collé à une PP (« à partir du col ») : pas de
-    # frontière ; un article plein (« les escrocs » après « l’ombre ») ouvre
-    # bien un nouveau syntagme
-    return false if %w[du des].include?(head) && prev2_head && PREPS.key?(prev2_head.to_s)
-    return true
-  end
-  # participe passé / adjectif verbal en -é/-i/-u après un mot PLEIN :
-  # il ouvre un nouveau groupe (« la date | choisie »), sauf nom propre
-  # capitalisé (« le dogue Liberté »). Les verbes finis restent avec leur
-  # sujet (« mes pères criaient » -> un seul groupe).
-  if prev_head && prev.kind == :word && !FUNCTION_WORDS.key?(prev_head) &&
-     !finite_verb_head?(prev_head) &&
-     tok.surface[0] == tok.surface[0].downcase &&
-     head.match?(/(?:é|ée|és|ées|i|ie|is|ies|u|ue|us|ues|it|ît)s?\z/)
-    return true
-  end
-  false
-end
+        pcs = pieces(tok)
+        head = head_of(tok).to_s # saute les fragments clitiques (c'est -> est)
+        last = pcs.last.to_s.downcase
+        nxt = tokens[i + 1]
+        nxt_head = nxt ? head_of(nxt) : nil
+        prev = tokens[i - 1]
+        prev_head = prev ? head_of(prev) : nil
+        prev2 = i >= 2 ? tokens[i - 2] : nil # pas d'index négatif !
+        prev2_head = prev2 ? head_of(prev2) : nil
+
+        return true if pcs.size == 1 && INDEFINIS.key?(head) # aucun, tout, autre… seuls
+        return true if CONJONCTIONS.key?(head) || CONJONCTIONS.key?(last)
+        return true if AUXILIAIRES.key?(last) # n'est, est, a…
+        # « en » : pronom devant un verbe à l'infinitif ou un nom (« en finir »
+        # ne coupe pas), préposition devant un déterminant (« en ta toison »
+        # coupe)
+        if head == 'en'
+          return nxt_head && DETERMINANTS.key?(nxt_head) ? true : false
+        end
+
+        if PREPOSITIONS.key?(head)
+          # « d'ange » (de + nom nu soudé) ou « de ange » : pas de frontière
+          return false if %w[de d].include?(head) && pcs.size > 1
+          return false if %w[de d].include?(head) && nxt_head && !DETERMINANTS.key?(nxt_head)
+
+          return true
+        end
+        if DETERMINANTS.key?(head)
+          # le déterminant appartient au syntagme précédent (« que le fond »,
+          # « sans l'accuser ») si le mot d'avant est fonctionnel
+          return false if prev_head && MOTS_FONCTIONNELS.key?(prev_head)
+          # après un verbe fini, le COD reste dans le groupe verbal
+          # (« font un reflet », « fondra la mer »)
+          return false if prev.kind == :word && finite_verb_head?(prev_head)
+          # « du/des » (génitif) collé à une PP (« à partir du col ») : pas de
+          # frontière ; un article plein (« les escrocs » après « l’ombre ») ouvre
+          # bien un nouveau syntagme
+          return false if %w[du des].include?(head) && prev2_head && PREPOSITIONS.key?(prev2_head.to_s)
+
+          return true
+        end
+        # participe passé / adjectif verbal en -é/-i/-u après un mot PLEIN :
+        # il ouvre un nouveau groupe (« la date | choisie »), sauf nom propre
+        # capitalisé (« le dogue Liberté »). Les verbes finis restent avec leur
+        # sujet (« mes pères criaient » -> un seul groupe).
+        if prev_head && prev.kind == :word && !MOTS_FONCTIONNELS.key?(prev_head) &&
+           !finite_verb_head?(prev_head) &&
+           tok.surface[0] == tok.surface[0].downcase &&
+           head.match?(/(?:é|ée|és|ées|i|ie|is|ies|u|ue|us|ues|it|ît)s?\z/)
+          return true
+        end
+
+        false
+      end
 
       private
 
       def analyze_result(res, text)
         warns = []
-        if res.respond_to?(:aligned) && !res.aligned
-          warns << "scansion could not align: res.aligned is false"
-        end
+        warns << 'scansion could not align: res.aligned is false' if res.respond_to?(:aligned) && !res.aligned
 
         # sanitize: un backend peut émettre des apostrophes ou autres signes
         # de ponctuation dans l"IPA — on ne garde que lettres/marques IPA
-        syls = res.phones.split("-").map { |s| s.strip.gsub(/[[:punct:]]/u, "") }.reject(&:empty?)
+        syls = res.phones.split('-').map { |s| s.strip.gsub(/[[:punct:]]/u, '') }.reject(&:empty?)
         # Sanity guard: phone segments should be 1:1 with the counted syllables
         # (CLI example: "o-kwɛ̃-dy-fø-dɑ̃-la-lɑ̃-gœʁ-de-ʁɛ-və-ʁi" = 12/12).
         if res.respond_to?(:syllables) && res.syllables != syls.size
@@ -262,8 +272,8 @@ end
       # ---- tokenization -------------------------------------------------------
 
       def tokenize(text)
-        text.scan(SCAN_RE).map do |m|
-          kind = m.match?(PUNCT_RE) ? :punct : :word
+        text.scan(REGEXP_MOTS).map do |m|
+          kind = m.match?(REGEXP_PONCTUATION) ? :punct : :word
           Token.new(surface: m, kind: kind)
         end
       end
@@ -292,6 +302,7 @@ end
 
       def align_words(res, tokens, syls, warns)
         return if syls.empty?
+
         words = tokens.select { |t| t.kind == :word }
         return if words.empty?
 
@@ -305,11 +316,12 @@ end
               sp = spans[si]
               si += 1
               next unless sp && sp[:last] >= sp[:first]
+
               first = sp[:first] if first.nil? || sp[:first] < first
               last = sp[:last] if last.nil? || sp[:last] > last
             end
-            tok.first = first
-            tok.last = last
+            tok.debut = first
+            tok.fin = last
           end
           return
         end
@@ -319,7 +331,7 @@ end
 
       def align_words_ipa(words, syls, warns)
         uniq = words.map { |t| t.surface.downcase }.uniq
-        ipa_list = Phonemizer.phonemize(uniq, language: "fr-fr")
+        ipa_list = Phonemizer.phonemize(uniq, language: 'fr-fr')
         ipa_list = [ipa_list] if ipa_list.is_a?(String) # single-word input
         ipa = uniq.zip(ipa_list).to_h
 
@@ -328,8 +340,8 @@ end
         words.each_with_index do |tok, wi|
           target = norm(ipa[tok.surface.downcase])
           start  = pos
-          rest_words = words.size - wi          # this word + following words
-          acc = ""
+          rest_words = words.size - wi # this word + following words
+          acc = ''
 
           if target.empty? # word that phonemizes to nothing (e.g. lone mute e)
             pos += 1 unless syls.size - pos - 1 < rest_words - 1
@@ -350,15 +362,15 @@ end
             pos += share
             unmatched << tok.surface
           end
-          tok.first = start
-          tok.last  = pos - 1
+          tok.debut = start
+          tok.fin   = pos - 1
         end
 
         warns << "unaligned words (proportional fallback): #{unmatched.uniq.join(', ')}" if unmatched.any?
       end
 
       def norm(str)
-        str.to_s.tr(SCHWA, "").tr("-", "")
+        str.to_s.tr(SCHWA, '').tr('-', '')
       end
 
       # ---- grouping ------------------------------------------------------------
@@ -369,7 +381,11 @@ end
       # n'ont pas d'accent propre.
       # index de la césure (0-based) : 6//6 pour 12, 4//4 pour 8
       def caesura_index(n)
-        n == 12 ? 5 : (n == 8 ? 3 : nil)
+        if n == 12
+          5
+        else
+          (n == 8 ? 3 : nil)
+        end
       end
 
       # Indices des syllabes portant un accent de mot (ˌ) : dernière syllabe
@@ -384,17 +400,18 @@ end
       def word_accents(tokens, syls, caesura = nil)
         acc = []
         tokens.each do |t|
-          next unless t.kind == :word && t.first && t.last && t.last >= t.first
-          next if pieces(t).all? { |p| FUNCTION_WORDS.key?(p.downcase) } # mot fonctionnel
+          next unless t.kind == :word && t.debut && t.fin && t.fin >= t.debut
+          next if pieces(t).all? { |p| MOTS_FONCTIONNELS.key?(p.downcase) } # mot fonctionnel
           # les verbes finis ne portent pas d’accent secondaire propre (ˌ) :
           # « font », « fondra » restent sans ˌ au milieu du groupe verbal
           next if finite_verb_head?(head_of(t))
-          i = t.last
-          i -= 1 while i > t.first && !accent_bearing?(syls[i])
+
+          i = t.fin
+          i -= 1 while i > t.debut && !accent_bearing?(syls[i])
           # ictus de césure : un mot coupé par la césure (4//4, 6//6) porte son
           # accent secondaire SUR la syllabe de césure, plus fort que sa finale
           # (« res|piration » -> ˌʁɛs et non ˌsjɔ̃)
-          if caesura && t.first <= caesura && caesura <= t.last &&
+          if caesura && t.debut <= caesura && caesura <= t.fin &&
              accent_bearing?(syls[caesura]) && caesura < i
             i = caesura
           end
@@ -447,7 +464,7 @@ end
 
       def all_function?(group)
         group.tokens.all? do |t|
-          t.kind == :punct || pieces(t).all? { |p| FUNCTION_WORDS.key?(p.downcase) }
+          t.kind == :punct || pieces(t).all? { |p| MOTS_FONCTIONNELS.key?(p.downcase) }
         end
       end
 
@@ -456,18 +473,22 @@ end
       # accent-bearing syllable at or before the caesura index (0-based).
       def split_caesura(groups, syls)
         n = syls.size
-        c = n == 12 ? 5 : (n == 8 ? 3 : nil)
+        c = if n == 12
+              5
+            else
+              (n == 8 ? 3 : nil)
+            end
         return groups if c.nil?
 
         s = c
-        s -= 1 while s > 0 && (syls[s].nil? || !accent_bearing?(syls[s]))
+        s -= 1 while s.positive? && (syls[s].nil? || !accent_bearing?(syls[s]))
         # une frontière de groupe (mot plein ou ponctuation) avant la cesure suffit
-        return groups if groups.any? { |g| g.tokens.last && g.tokens.last.last && g.tokens.last.last <= c }
+        return groups if groups.any? { |g| g.tokens.last&.fin && g.tokens.last.fin <= c }
 
         out = []
         groups.each do |g|
-          cover = g.tokens.index { |t| t.first && t.last && t.first <= s && t.last >= s }
-          cover = nil if cover == g.tokens.size - 1 && g.tokens.last.last == s
+          cover = g.tokens.index { |t| t.debut && t.fin && t.debut <= s && t.fin >= s }
+          cover = nil if cover == g.tokens.size - 1 && g.tokens.last.fin == s
           if cover && cover < g.tokens.size - 1
             out << Group.new(g.tokens[0..cover], nil)
             out << Group.new(g.tokens[(cover + 1)..], nil)
@@ -485,12 +506,15 @@ end
       # (rule 3).
       def place_accent(group, syls)
         return nil if group.tokens.empty?
-        lo = group.tokens.map(&:first).compact.min
-        hi = group.tokens.map(&:last).compact.max
+
+        lo = group.tokens.map(&:debut).compact.min
+        hi = group.tokens.map(&:fin).compact.max
         return nil if lo.nil? || hi.nil?
+
         lo = [lo, 0].max
         hi = [hi, syls.size - 1].min
         return nil if lo > hi
+
         i = hi
         i -= 1 while i > lo && !accent_bearing?(syls[i])
         i
@@ -500,8 +524,9 @@ end
       # initial suivi d'une autre voyelle est un glide, pas un noyau
       # ("yi" -> i ; "ty" (tu) -> y reste un noyau)
       def nucleus(syl)
-        return "" if syl.nil?
-        chars = syl.chars.select { |c| VOWELS.include?(c) }
+        return '' if syl.nil?
+
+        chars = syl.chars.select { |c| VOYELLES.include?(c) }
         chars.shift if chars.size > 1 && GLIDES.include?(chars.first.to_s)
         chars.join
       end
@@ -533,13 +558,11 @@ end
         end
 
         c = n == 12 ? 5 : 3 # index 0-based de la cesure
-        unless a.groups.any? { |g| g.tokens.last && g.tokens.last.last && g.tokens.last.last <= c }
+        unless a.groups.any? { |g| g.tokens.last&.fin && g.tokens.last.fin <= c }
           w << "verse #{n}: no group boundary at the caesura (syllable #{c + 1})"
         end
         w
       end
-
-
     end
   end
 end
@@ -548,9 +571,9 @@ end
 
 if __FILE__ == $PROGRAM_NAME
   corpus = [
-    "Au coin du feu, dans la langueur des rêveries!",
+    'Au coin du feu, dans la langueur des rêveries!',
     "Le jour n'est pas plus pur que le fond de ma nuit",
-    "Dites, sans l’accuser de chercher un esclave,",
+    'Dites, sans l’accuser de chercher un esclave,'
   ]
   Scansion::Accents.analyze_lines(corpus).each do |a|
     puts a.text

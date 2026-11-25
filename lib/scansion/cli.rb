@@ -1,13 +1,16 @@
 # frozen_string_literal: true
+
 #
 # cli.rb — point d'entrée CLI du gem scansion (Scansion.main), invoqué
 # seulement quand ce fichier est exécuté comme script, ou appelé
 # explicitement via bin/scansion. Le require de "scansion" reste sans effet
 # de bord : pas d'OptionParser sur l'ARGV de l'hôte.
 
-require "optparse"
-require_relative "syllabification"
+require 'optparse'
+require_relative 'syllabification'
 
+# Module Scansion rouvert ici pour y loger le point d'entrée CLI
+# (Scansion.main) ; voir scansion/syllabification pour le cœur du gem.
 module Scansion
   class << self
     # -- CLI -------------------------------------------------------------
@@ -25,13 +28,13 @@ module Scansion
       options = { syllables_only: false, dierese: :auto }
       OptionParser.new do |opts|
         opts.banner = "Utilisation : #{File.basename($PROGRAM_NAME)} [options] [FILE|-]"
-        opts.on("--no-dierese", "Désactiver la diérèse contextuelle (corpus contemporain)") do
+        opts.on('--no-dierese', 'Désactiver la diérèse contextuelle (corpus contemporain)') do
           options[:dierese] = false
         end
-        opts.on("-s", "--syllables", "Afficher seulement le décompte des syllabes") do
+        opts.on('-s', '--syllables', 'Afficher seulement le décompte des syllabes') do
           options[:syllables_only] = true
         end
-        opts.on("-h", "--help", "Afficher cette aide") do
+        opts.on('-h', '--help', 'Afficher cette aide') do
           puts opts
           exit
         end
@@ -46,7 +49,7 @@ module Scansion
       #   scansion "Au coin du feu, dans la langueur des rêveries!"
       inline = []
       ARGV.replace(argv.flat_map do |arg|
-        if arg == "-" || File.exist?(arg)
+        if arg == '-' || File.exist?(arg)
           arg
         else
           inline.concat(arg.split(/[\r\n]+/))
@@ -73,12 +76,12 @@ module Scansion
         next if res.text.strip.empty?
 
         if options[:syllables_only]
-          puts format("%3d  %s", res.syllables, res.text.to_s.strip)
+          puts format('%3d  %s', res.syllables, res.text.to_s.strip)
         else
           puts res.text.to_s.rstrip
-          puts format("  %s %s   (%d syll.)", res.aligned ? "⇒" : "~", res.phones, res.syllables)
+          puts format('  %s %s   (%d syll.)', res.aligned ? '⇒' : '~', res.phones, res.syllables)
           puts "    (espeak seul : #{res.raw})" unless res.aligned
-          puts ""
+          puts ''
         end
 
         fallbacks += 1 unless res.aligned

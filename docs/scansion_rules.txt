@@ -42,7 +42,7 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      « la table » -> la-tabl (2 syllabes).
 
 1.4b E muet devant une pause graphique (, ; : ! ? … —) : non compté,
-     comme en fin de vers — SAUF si le e est prononcé (CR_E_PRONOUNCED ou,
+     comme en fin de vers — SAUF si le e est prononcé (EXCEPTIONS_E_PRONONCE ou,
      en contexte classique, mot en -Cre : voir 1.5d) : « ivre, complice »
      -> i-vʁə (le e de « ivre » reste compté devant la virgule).
      « perclus des coups de rêche, l’abstinente » ->
@@ -71,7 +71,7 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      a-lou-e-tte), « les alouettes lestes qui mélangent » = 10 syllabes.
 
 1.5c Digrammes vocaliques en UNE syllabe : ai, au, ou, eu, ei, ay, ey,
-     ui, ue, œ (DIGRAPH_ONE_PHONE). La 2e lettre est absorbée seulement
+     ui, ue, œ (DIGRAPHE_UN_PHONEME). La 2e lettre est absorbée seulement
      si la 1re lettre ne suit pas elle-même une voyelle : ainsi dans
      « alouettes » le e reste compté (règle 1.5b), mais « m'accueille »
      -> ma-kœj (7 syllabes pour le vers, le ue de -ueille formant un œ).
@@ -143,7 +143,7 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      mais liaison_initial? -> true (les yeux -> lez-jø, des yachts ->
      de-zjat). Voir y_glide? / liaison_initial?. Le re-scan classique n'est retenu que s'il mène le vers
      à un mètre (6/8/10/12), donc les vers déjà justes ne sont pas touchés.
-     EXCEPTIONS (CR_E_PRONOUNCED, pluriels en -s/-x acceptés via
+     EXCEPTIONS (EXCEPTIONS_E_PRONONCE, pluriels en -s/-x acceptés via
      cr_e_pronounced?) : « astre », « battre », « croître », « entendre »,
      « entre », « être », « guerre », « hydre », « maître », « moindre »,
      « œuvre », « ombre », « peindre », « tonnerre », « ventre » gardent leur e final
@@ -237,7 +237,7 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
 2.1g Divers : s intervocalique -> z aussi devant h muet (déshonneur) ;
      p muet devant t (sept -> sɛt) ; t muet devant m (montmartre) ;
      r muet devant l (waterloo) ; l muet devant s final voisé (fils -> fis,
-     mais ils -> il) ; f final dans SILENT_TAILS (serf) ; chiffres retirés
+     mais ils -> il) ; f final dans FINALES_MUETTES (serf) ; chiffres retirés
      de l’entrée (31 -> « trente et un »). normalize_input (appliqué à
      words_of ET à espeak pour garder lettres et phones cohérents) ne
      normalise que les entités HTML et les chiffres.
@@ -277,7 +277,7 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
 2.3  Digrammes de consonnes : ch->ʃ, ph->f, th->t, qu->k, ss->s, ck->k,
      gn->ɲ (ou n, parfois n+j : « éteignent » -> etɛnj).
 
-2.4  C/G doux devant e i y é è ê (SOFT_NEXT) : c->s, g->ʒ.
+2.4  C/G doux devant e i y é è ê (VOYELLES_ADOUCISSANTES) : c->s, g->ʒ.
      « c'est » -> le mot c seul vaut s devant voyelle ;
      « sc- » devant voyelle douce : c muet (« scellé » -> sɛle) ;
      « second(e) » -> g dur (səɡɔ̃d) ;
@@ -303,7 +303,7 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      un digramme (« maintenant » -> mɛ̃tnɑ̃, « pain » -> pɛ̃).
 
 2.9  Consonnes silencieuses en queue, à n'importe quelle position quand
-     la tête ne correspond pas (SILENT_TAILS : ent, nt, nts, nte, ns, nc, ms, cs,
+     la tête ne correspond pas (FINALES_MUETTES : ent, nt, nts, nte, ns, nc, ms, cs,
      s, t, ts, d, x, z, p, ps, g, gt, st, ut, r, n, it, ds, rs, c, ôt, u,
      au, aux, eau, eaux, eux, ux, ous...) : « fronts » -> fʁɔ̃,
      « coups » -> ku, « pierre » -> pjɛʁ, « raconter » -> ʁakɔ̃te,
@@ -343,7 +343,7 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      la lettre précédente (alouettes : o-u-e -> le e compte encore ;
      mais yeux : y vaut j ici, donc « eu » EST un digramme -> ʒø).
      Le critère est purement orthographique : la paire (lettre précédente
-     + lettre courante) appartient à DIGRAPH_ONE_PHONE.
+     + lettre courante) appartient à DIGRAPHE_UN_PHONEME.
 
 2.18 Fragment d’apostrophe + run vocalique spanning : après un fragment
      d’elision d’une lettre (c’, j’, l’, d’, n’, s’, t’, m’, qu’), si le
@@ -355,7 +355,7 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      se-ɛt-y-nə-dɑ̃-sə-pɛʁ-pe-tyɛl (9 syllabes).
 
 2.19 « oe » prononcé en 2 voyelles (Noël -> nɔ-ɛl, canoë -> ka-nɔ-e,
-     goélette -> ɡɔ-e-lɛt) : DIGRAPH_ONE_PHONE « oe » => 2. MAIS si le mot
+     goélette -> ɡɔ-e-lɛt) : DIGRAPHE_UN_PHONEME « oe » => 2. MAIS si le mot
      suivant commence par une voyelle et que le run contient exactement
      2 voyelles, le run peut FRANCHIR la frontière de mot (boeufs au ->
      run « øo » = ø de boeufs + o de « au ») : on ne consomme alors qu’UNE
@@ -363,7 +363,7 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
 
 2.20 Lettre voyelle ouvrant une queue silencieuse de 2+ lettres devant un
      phone consonne : la lettre est sautée avec toute la queue (boeufs ->
-     bø, « ufs » muet ; SILENT_TAILS inclut désormais ufs/oeufs). SAUF :
+     bø, « ufs » muet ; FINALES_MUETTES inclut désormais ufs/oeufs). SAUF :
      queues en -x (le x peut liaisonner : beaux yeux -> bo-zjø) et queues
      -ent/-nt (règle 1.6 prioritaire). Les queues d’une seule lettre (le u
      de « tu ») ne sont pas concernées.

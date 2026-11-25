@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
+
 #
 # scansion.rb — point d'entrée du gem scansion : phonétise des vers français
 # (espeak-ng) en restaurant le e muet selon les règles de la scansion
@@ -14,7 +15,7 @@
 # `require "scansion"` charge tout ceci sans effet de bord. Voir
 # docs/scansion_rules.txt pour la liste complète des règles.
 
-require_relative "scansion/version"
-require_relative "scansion/syllabification"
-require_relative "scansion/accents"
-require_relative "scansion/cli"
+require_relative 'scansion/version'
+require_relative 'scansion/syllabification'
+require_relative 'scansion/accents'
+require_relative 'scansion/cli'

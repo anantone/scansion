@@ -1,0 +1,39 @@
+AllCops:
+  TargetRubyVersion: 3.1
+  NewCops: disable
+
+Style/StringLiterals:
+  EnforcedStyle: single_quotes
+
+# Choix documentés pour ce codebase (prosodie française, moteur de règles) :
+Style/FormatStringToken:
+  EnforcedStyle: template # format('%3d  %s', ...) positionnels au CLI
+
+Naming/AsciiIdentifiers:
+  Enabled: false # « h aspiré » : H_ASPIRÉ, h_aspiré? (terme technique français)
+
+Naming/MethodParameterName:
+  AllowedNames: ['a', 'ch', 'i', 'n', 'on'] # index / lettre / nombre / drapeau : params courts idiomatiques
+
+Style/OptionalBooleanParameter:
+  Enabled: false # API volontaire : dierese: false/true/:auto, drapeau interne big:
+
+# Le moteur de règles (syllabification.rb) est par nature long et ramifié :
+# ces plafonds documentent l'état actuel et servent de fil d'alarme.
+Metrics/BlockLength:
+  Exclude: ['spec/**/*']
+  Max: 200
+Metrics/MethodLength:
+  Max: 250
+Metrics/AbcSize:
+  Max: 650
+Metrics/CyclomaticComplexity:
+  Max: 170
+Metrics/PerceivedComplexity:
+  Max: 175
+Metrics/ParameterLists:
+  Max: 12
+Metrics/ClassLength:
+  Max: 470
+Metrics/ModuleLength:
+  Max: 950
