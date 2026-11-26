@@ -10,16 +10,16 @@ Gem::Specification.new do |spec|
   spec.authors       = 'anantone'
   spec.email         = 'self@anantone.me'
 
-  spec.summary       = 'Scansion de vers français avec restauration du e muet (e caduc)'
-  spec.description   = 'Phonétise des vers français avec espeak-ng et restaure le e muet ' \
-                       '(e caduc) selon les règles de la scansion classique, puis accentue' \
-                       ' et compte les syllabes.'
+  spec.summary       = 'Scansion de vers français : syllabes, accents, régimes classique/contemporain'
+  spec.description   = 'Phonétise des vers français (espeak-ng via phonemizer_ffi), compte les ' \
+                       'syllabes et produit groupes rythmiques et accents ˈ/ˌ. Le régime du texte ' \
+                       'est détecté automatiquement (mode :auto) : vers classique (mètres pairs ' \
+                       'rimés, diérèses, césure) ou contemporain (e caduc non compté, tirage ' \
+                       'accentuel 2.6).'
   spec.homepage      = 'https://github.com/anantone/scansion'
   spec.license       = 'MIT'
   spec.required_ruby_version = '>= 3.1'
 
-  # Métadonnées lues notamment par rubydoc.info (qui génère la doc avec YARD
-  # à partir du dépôt source) et par rubygems.org.
   spec.metadata = {
     'source_code_uri' => 'https://github.com/anantone/scansion',
     'changelog_uri' => 'https://github.com/anantone/scansion/blob/main/CHANGELOG.md',
@@ -32,7 +32,7 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency 'phonemizer_ffi', '~> 0.1'
 
-  spec.add_development_dependency 'kramdown' # provider markdown de YARD
+  spec.add_development_dependency 'kramdown'
   spec.add_development_dependency 'rake'
   spec.add_development_dependency 'rdoc'
   spec.add_development_dependency 'rspec', '~> 3.13'

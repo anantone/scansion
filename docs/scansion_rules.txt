@@ -8,6 +8,27 @@ les lettres orthographiques sur les segments phonétiques. Toute restauration
 de « e muet » est faite par l'alignement ; si l'alignement échoue pour un
 mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
 
+0. RÉGIMES (mode:) ET DÉTECTION AUTOMATIQUE (:auto)
+----------------------------------------------------
+Tous les points d'entrée (process_line, process_lines, Accents.analyze_line(s),
+CLI) prennent `mode: :auto | :classique | :contemporain` :
+- :auto (DÉFAUT) — le régime est détecté UNE FOIS pour tout le texte
+  (Scansion.detect_mode / Classique.detect_mode, sur une 1re passe où l'e muet
+  est compté) : :classique si >= 70 % des vers tombent sur un mètre pair
+  [6, 8, 10, 12] ET si >= 70 % des vers (à partir de 4 vers) participent à une
+  rime STRICTE de fin de vers (Classique.rhyme_key : voyelle de la dernière
+  syllabe jusqu'à la fin, nasales aplaties, m/n final ignoré) ; :contemporain
+  sinon (comptes impairs, irrégularité, absence de rimes). Jamais de décision
+  ligne à ligne.
+- :classique — e muet compté devant une consonne ; tout vers hors mètre pair
+  est re-scanné vers 6/8/10/12 (diérèses, e des -re, pause_e alexandrine,
+  ciblage mot à mot : Classique.auto_line) ; césure et accents de groupe
+  classiques ; AUCUN tirage 2.6.
+- :contemporain — e caduc non compté devant une consonne, pas de diérèse ;
+  tirage 2.5 vers le mètre dominant des vers voisins (context_meter +
+  pull_to_meter, process_lines) et tirage accentuel 2.6 par les groupes
+  rythmiques du vers (Scansion::Rythme, section 3.2).
+
 
 1. RÈGLES DE SCANSION (comptage des syllabes)
 ---------------------------------------------
@@ -16,8 +37,8 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      « redemande encore » -> ʁdəmɑ̃dɑ̃kɔʁ (le e de re-de-man-de restauré).
 
 1.2  E muet final devant un mot à initiale consonantique : prononcé EN
-     CONTEXTE CLASSIQUE (diérèse active, donc aussi en mode :auto), non
-     compté en mode contemporain (plain / --no-dierese) pour un VRAI e caduc.
+     MODE CLASSIQUE (mode: :classique), non
+     compté en mode contemporain (mode: :contemporain) pour un VRAI e caduc.
      « table ronde » -> ta-blə-ʁɔ̃d (3 syllabes, contexte classique) ;
      en contemporain -> tabl-ʁɔ̃d (2 syllabes) — « mes pères criaient
      dessous mes pieds » -> 8 syllabes (pɛʁ, le e de « pères » non compté).
@@ -27,7 +48,7 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      « derrière la tête le passé jouit » -> dɛ-ʁjɛʁ-la-tɛt-lə-pa-se-ʒwi
      (8 syllabes, jamais lpa-se). Ils ne s'élident que devant une voyelle
      (élision : « l'ami », « qu'amer »).
-     TIRAGE CONTEXTUEL (process_lines, aussi en mode plain/--no-dierese) : si
+     TIRAGE CONTEXTUEL 2.5 (process_lines, mode :contemporain uniquement) : si
      le compte d'un vers ne tombe pas sur un mètre (6/8/10/12) mais que les
      vers voisins (fenêtre de 5) sont unanimes (>= 70 %) sur un mètre M, on
      re-scanne en comptant l'e caduc (sans diérèse) et on retient le résultat
@@ -48,11 +69,11 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      « perclus des coups de rêche, l’abstinente » ->
      pɛʁ-kly-de-ku-də-ʁɛʃ-lab-sti-nɑ̃t (9 syllabes, pas 10) ;
      « qui se retourne, s’éloigne » -> ki-sə-ʁə-tuʁn-se-lwaɲ (6 syllabes).
-     EXCEPTION ALEXANDRINE (mode :auto, contexte classique) : si compter le e
+     EXCEPTION ALEXANDRINE (mode classique) : si compter le e
      devant la pause mène le vers exactement à 12 syllabes, le e est compté
      (paramètre pause_e) — « Dites, sans l’accuser de chercher un esclave, »
      -> di-tə-… (12). Jamais appliqué ailleurs : en vers irrégulier ou
-     contemporain (--no-dierese), la pause silencie bien le e muet.
+     contemporain (mode: :contemporain), la pause silencie bien le e muet.
 
 1.5  E muet final devant un s muet : restauré EN CONTEXTE CLASSIQUE.
      « tables blanches » -> ta-blə-blɑ̃ʃ (3 syllabes, classique) ;
@@ -78,7 +99,7 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      « ui » compte pour 2 voyelles espeak (yi) : « qui » -> ki.
 
 1.4c DIÉRÈSE — RÉSERVÉE AU CONTEXTE CLASSIQUE, automatique et contextuelle
-     par défaut dans le CLI (dierese: :auto ; --no-dierese pour désactiver
+     en mode :classique (forcé au CLI par --classique ; --contemporain pour
      entièrement, p. ex. corpus contemporain). Un « i » suivi d’une
      voyelle pleine que espeak a rendu par un glide compte DOUBLE en vers
      classique (lion -> li-jɔ̃, dieu -> di-jø, viens -> vi-ens ; mais
@@ -93,14 +114,10 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      1 syllabe). En re-scan CIBLÉ (dierese_words, voir ci-dessous), deux
      extensions : « u+a » interne (suaves -> su-a-ves, muaient -> mu-a-ient,
      mortuaires -> mor-tu-aires) et « ou+i » (épanoui -> é-pa-nou-i,
-     épanouit -> é-pa-nou-it). Le contexte classique est détecté par les
-     VERS VOISINS (classical_context?) : majorité de vers dans la BANDE
-     alexandrine 10-13 (les 11/13 y comptent comme candidats diérèse)
-     OU la bande octosyllabe 6-9 (les 7 y comptent comme candidats),
-     dans une fenêtre de ±5 vers (seuil
-     70 %). En poésie
-     contemporaine (samples/), la diérèse ne peut PAS être déduite d’un
-     nombre cible : les rapports de samples/ tournent avec --no-dierese.
+     épanouit -> é-pa-nou-it). Le régime classique est détecté GLOBALEMENT sur
+     le texte (voir section 0 : detect_mode — mètres pairs + rimes de fin de
+     vers), jamais ligne à ligne : en poésie contemporaine (samples/), la
+     diérèse ne peut PAS être déduite d’un nombre cible.
      Même en contexte classique, le re-scan avec diérèse n’est retenu que
      s’il mène le vers à 6/8/10/12. Si le re-scan global (diérèse sur tous
      les mots candidats + e des -re comptés) ne tombe pas sur un mètre, un
@@ -133,7 +150,21 @@ mot, le vers entier retombe sur la sortie espeak brute (préfixe « ~ »).
      mère -> mè-re, chère -> chè-re, gloire -> gloi-re, terre -> ter-re,
      encore -> ɑ̃-kɔʁə… (voir cluster_re_pronounced?).
      La règle 1.5d stricte n'est donc appliquée qu'en mode contemporain
-     (--no-dierese).
+     (mode: :contemporain), AVEC UNE EXCEPTION : le e final d'un mot en
+     -re/-que/-gue reste PRONONCÉ quand le mot suivant commence par « r »
+     ou une labiale (p b f v m), pour éviter le double r ou le cluster
+     ʁ+labiale — « votre part » -> vo-tʁə-paʁ (et non votʁ-paʁ),
+     « votre rang » -> vo-tʁə-ʁɑ̃, « O sombre mer » -> sɔ̃-bʁə-mɛʁ
+     (voir re_e_before_r_or_labial?). Devant « r », l'exception ne vaut que
+     pour les vrais -Cre (consonne + r + e) : après -ure/-ère/-oire le e
+     TOMBE (« écriture ramène » -> kʁi-tyʁ-ʁa-mɛn, et non kʁi-ty-ʁə-ʁa-mɛn).
+     Extension 1.5d-pluriel (mode contemporain uniquement) : le -es pluriel
+     d'un nom/adjectif ne garde PAS son e de liaison devant une voyelle —
+     « jambes ouvertes » -> ʒɑ̃b-zuvɛʁt (3), « nouvelles amours » ->
+     nu-vɛl-za-muʁ (4). Les déterminants en -es gardent leur e
+     (« les yeux » -> le-zjø, PLURAL_ES_DETS) et les EXCEPTIONS_E_PRONONCE
+     sont préservées (« tonnerres », « ombres »). En classique, inchangé
+     (nu-vɛ-lə-za-muʁ, 5). Voir plural_es_contemporain?.
 1.5e -ent PRONONCÉ (3e personne du pluriel) : en re-scan ciblé mot à mot
      (ent_words), t’arrivent -> ta-ʁi-vɑ̃, surgissent -> syʁ-ʒi-sɑ̃,
      marquent -> maʁ-kɑ̃ (le t de liaison est abandonné). Jamais en passe
@@ -405,7 +436,45 @@ LIMITATION CONNUE : -u final (tu, nu, su) devant un mot à initiale
      /j/ glide dans la chaîne de phones seule.
 
 
-3. COMPORTEMENT DE SECOURS
+3. RÈGLES DE TIRAGE (mètre et rythme)
+======================================
+3.1  Tirage contextuel vers le mètre (vers contemporains RÉGuliers, mode
+     :contemporain) — Scansion::Classique.pull_to_meter : un vers hors mètre
+     [6,8,10,12] est re-scanné avec l'e caduc compté quand les 5 vers voisins
+     sont >= 70 % sur un même mètre M ; retenu si le résultat fait exactement M
+     (« les gouttes du dernier envol » -> 8 dans un poème d'octosyllabes).
+
+3.2  Tirage accentuel en vers libre (règle 2.6) — Scansion::Rythme
+     (lib/scansion/rythme.rb) : `accent_pull` compare la scansion plain aux
+     variantes « e caduc compté » (+e, global ou mot à mot) et « diérèse » ;
+     si l'une a un score de régularité strictement supérieur, elle tire le
+     vers (plafond +1 syllabe, jamais de diérèse sur dieu/dieux).
+     `signature` = tailles des groupes en syllabes ; `score` = tailles >= 2
+     répétées + paires adjacentes ([3,3,3,3]->6, [6,3,3]->2, [8,3]->0).
+     Appliqué dans Accents.analyze_line(s) en mode contemporain ; jamais en
+     mode classique. La régularité rythmique est une caractéristique du
+     vers ; l'évaluation SUBJECTIVE de ces caractéristiques (score global)
+     vit dans le gem claudel. Voir gems/claudel/docs/notes_claudel.txt.
+
+3.3  Règles de groupement accentuel propres au vers contemporain
+     (Accents, actives seulement quand le vers est traité en mode
+     contemporain : mode: :contemporain) :
+     - frontière entre deux mots PLEINS (« de bile | noire »,
+       « reflets | dérisoires », « mes pères | criaient ») ; les déterminants
+       après un verbe fini restent dans le groupe verbal (« font un reflet ») ;
+     - frontière mot plein -> préposition AUTRE QUE DE (« d'or | en ta
+       chair », « je prie | en silence ») ; « de + nom » complément ne coupe
+       pas, même en contemporain (« l'absence de sens », « le sens de
+       l'écrit », « peau d'ange » restent un groupe) ;
+     - la négation « pas » ne coupe pas le groupe verbal (« ne meurt pas ») ;
+     - « alors » ouvre un groupe mais ne le ferme pas (« cerveau | alors que
+       rien ») ; pronoms « qui/jamais/rien/leur(s) » comptés comme pleins côté
+       précédent (« qui | s'écoule ») ;
+     - une frontière de groupe ne tombe JAMAIS à l'intérieur d'un mot :
+       l'aligneur ne vole plus la voyelle initiale du mot suivant
+       (« cerveau alors » -> sɛʁ-vo | a-lɔʁ).
+
+4. COMPORTEMENT DE SECOURS
 --------------------------
 
 Si un mot ne peut pas être aligné, le vers entier est émis en sortie

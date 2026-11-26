@@ -24,16 +24,16 @@ Metrics/BlockLength:
   Exclude: ['spec/**/*']
   Max: 200
 Metrics/MethodLength:
-  Max: 250
+  Max: 260
 Metrics/AbcSize:
-  Max: 650
+  Max: 700
 Metrics/CyclomaticComplexity:
-  Max: 170
-Metrics/PerceivedComplexity:
   Max: 175
+Metrics/PerceivedComplexity:
+  Max: 185
 Metrics/ParameterLists:
   Max: 12
 Metrics/ClassLength:
-  Max: 470
+  Max: 485
 Metrics/ModuleLength:
   Max: 950

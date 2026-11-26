@@ -74,9 +74,9 @@ RSpec.describe Scansion do
   end
 
   describe "comptes de l'e muet" do
-    it "mode classique (:auto) : compte l'e muet final devant consonne" do
+    it "mode classique (mode: :classique) : compte l'e muet final devant consonne" do
       stub_espeak('table ronde' => 'tablʁɔ̃d')
-      r = process('table ronde', dierese: :auto)
+      r = process('table ronde', mode: :classique)
       expect(r).to have_attributes(aligned: true, phones: 'ta-blə-ʁɔ̃d',
                                    syllables: 3)
     end
@@ -97,7 +97,7 @@ RSpec.describe Scansion do
 
     it 'e fixe des monosyllabes grammaticaux : « le » n’est jamais élidé devant une consonne' do
       stub_espeak('derrière la tête le passé jouit' => 'dɛʁjɛʁlatɛtləpaseʒwi')
-      r = process('derrière la tête le passé jouit')
+      r = process('derrière la tête le passé jouit', mode: :contemporain)
       expect(r).to have_attributes(aligned: true, syllables: 8)
       expect(r.phones).to eq('dɛ-ʁjɛʁ-la-tɛt-lə-pa-se-ʒwi')
       expect(described_class.stable_schwa?('le')).to be true
@@ -117,9 +117,9 @@ RSpec.describe Scansion do
       expect(r.phones).to eq('tabl-ɔ-ʁɑ̃ʒ')
     end
 
-    it "mode classique (:auto) : restaure l'e final devant un s muet" do
+    it "mode classique (mode: :classique) : restaure l'e final devant un s muet" do
       stub_espeak('tables blanches' => 'tablblɑ̃ʃ')
-      r = process('tables blanches', dierese: :auto)
+      r = process('tables blanches', mode: :classique)
       expect(r.phones).to eq('ta-blə-blɑ̃ʃ')
     end
 
@@ -130,9 +130,9 @@ RSpec.describe Scansion do
                                    syllables: 3)
     end
 
-    it "mode classique (:auto) : compte l'e final devant une consonne sans pause (contraste)" do
+    it "mode classique (mode: :classique) : compte l'e final devant une consonne sans pause (contraste)" do
       stub_espeak('la table ronde' => 'latablʁɔ̃d') # idem, sans virgule
-      r = process('la table ronde', dierese: :auto)
+      r = process('la table ronde', mode: :classique)
       expect(r.phones).to eq('la-ta-blə-ʁɔ̃d')
     end
 
@@ -167,14 +167,14 @@ RSpec.describe Scansion do
 
     it 'prononce le -ent devant une consonne dans le vers (contexte classique)' do
       stub_espeak('ils chantent bien' => 'ilʃɑ̃tbjɛ̃')
-      r = process('ils chantent bien', dierese: :auto)
+      r = process('ils chantent bien', mode: :classique)
       expect(r).to have_attributes(aligned: true, phones: 'il-ʃɑ̃-tə-bjɛ̃',
                                    syllables: 4)
     end
 
     it 'prononce le -ent devant un h aspiré (contexte classique)' do
       stub_espeak('ils chantent héros' => 'ilʃɑ̃teʁo')
-      r = process('ils chantent héros', dierese: :auto)
+      r = process('ils chantent héros', mode: :classique)
       expect(r).to have_attributes(aligned: true, phones: 'il-ʃɑ̃-tə-e-ʁo',
                                    syllables: 5)
     end
@@ -201,7 +201,7 @@ RSpec.describe Scansion do
 
     it 'ne prononce pas le -ent après une voyelle (-uent, -ient)' do
       stub_espeak('qui perpétuent le souvenir' => 'kipɛʁpetyləsuvniʁ')
-      r = process('qui perpétuent le souvenir', dierese: :auto)
+      r = process('qui perpétuent le souvenir', mode: :classique)
       expect(r).to have_attributes(aligned: true,
                                    phones: 'ki-pɛʁ-pe-ty-lə-su-və-niʁ',
                                    syllables: 8)
@@ -218,7 +218,7 @@ RSpec.describe Scansion do
     it 'traite un vers complet' do
       stub_espeak('Je chante, à voix basse, la belle table' =>
                   'ʒəʃɑ̃tavwabaslabɛltabl')
-      r = process('Je chante, à voix basse, la belle table', dierese: :auto)
+      r = process('Je chante, à voix basse, la belle table', mode: :classique)
       # chante, / basse, perdent leur e muet devant les virgules
       expect(r).to have_attributes(aligned: true, syllables: 9)
       expect(r.phones).to eq('ʒə-ʃɑ̃t-a-vwa-bas-la-bɛ-lə-tabl')
@@ -279,25 +279,11 @@ RSpec.describe Scansion do
     end
   end
 
-  describe '.classical_context?' do
-    it 'vrai quand les voisins sont dans la bande alexandrine (10-13)' do
-      expect(described_class.classical_context?([12, 12, 12, 12, 12], 2)).to be true
-    end
-
-    it 'faux en vers libre contemporain' do
-      expect(described_class.classical_context?([7, 5, 9, 4, 6, 8], 2)).to be false
-    end
-
-    it 'faux sans voisin exploitable' do
-      expect(described_class.classical_context?([12], 0)).to be false
-    end
-  end
-
   describe 'exceptions -Cr- (astre, entendre, entre, ventre)' do
     it 'compte le e final de « entendre » devant une consonne (alexandrine à 12)' do
       stub_espeak("Pour t'entendre sonner, je monte sur ma tour," =>
                   'puʁtɑ̃tɑ̃dʁsɔneʒəmɔ̃tsyʁmatuʁ')
-      r = process("Pour t'entendre sonner, je monte sur ma tour,", dierese: :auto)
+      r = process("Pour t'entendre sonner, je monte sur ma tour,", mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('puʁ-tɑ̃-tɑ̃-dʁə-sɔ-ne-ʒə-mɔ̃-tə-syʁ-ma-tuʁ')
     end
@@ -379,11 +365,14 @@ RSpec.describe Scansion do
     it "aligne « étrangères à ton nom, miroir » (espeak ne rend qu'un m)" do
       stub_espeak('étrangères à ton nom, miroir' => 'etʁɑ̃ʒɛʁzatɔ̃nɔ̃miʁwaʁ')
       r = process('étrangères à ton nom, miroir')
-      # le e de « étrangers(-ères) » est restauré devant le s muet (règle 1.5),
-      # le s fait liaison en z devant « à » ; le m de « nom, miroir » est
-      # rendu à « miroir » (un seul segment m)
-      expect(r).to have_attributes(aligned: true, syllables: 9)
-      expect(r.phones).to eq('e-tʁɑ̃-ʒɛ-ʁə-za-tɔ̃-nɔ̃-mi-ʁwaʁ')
+      # en mode contemporain (mode: :contemporain), le -es de « étrangères » ne
+      # garde pas son e de liaison devant « à » (règle 1.5d étendue) ;
+      # le s fait liaison en z ; le m de « nom, miroir » est rendu à « miroir »
+      expect(r).to have_attributes(aligned: true, syllables: 8)
+      expect(r.phones).to eq('e-tʁɑ̃-ʒɛʁ-za-tɔ̃-nɔ̃-mi-ʁwaʁ')
+      # en classique, le e est compté (9)
+      r2 = process('étrangères à ton nom, miroir', mode: :classique)
+      expect(r2).to have_attributes(aligned: true, syllables: 9)
     end
   end
 
@@ -391,7 +380,7 @@ RSpec.describe Scansion do
     it 'ne élide pas le e de « se » devant « hisser » (h aspiré, 3 syllabes)' do
       stub_espeak('mais se hisser plutôt vers le connu,' =>
                   'mɛsəiseplytovɛʁləkɔny')
-      r = process('mais se hisser plutôt vers le connu,', dierese: :auto)
+      r = process('mais se hisser plutôt vers le connu,', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 10)
       expect(r.phones).to eq('mɛ-sə-i-se-ply-to-vɛʁ-lə-kɔ-ny')
     end
@@ -408,32 +397,32 @@ RSpec.describe Scansion do
                   'au hasard' => 'oazaʁ')
       # h muet: elision (« l'homme » -> lɔm) ; h aspiré: e compté, voyelle pleine
       expect(process("l'homme")).to have_attributes(aligned: true, phones: 'lɔm', syllables: 1)
-      expect(process('le hasard', dierese: :auto)).to have_attributes(aligned: true, phones: 'lə-a-zaʁ', syllables: 3)
-      expect(process('le hisser', dierese: :auto)).to have_attributes(aligned: true, phones: 'lə-i-se', syllables: 3)
+      expect(process('le hasard', mode: :classique)).to have_attributes(aligned: true, phones: 'lə-a-zaʁ', syllables: 3)
+      expect(process('le hisser', mode: :classique)).to have_attributes(aligned: true, phones: 'lə-i-se', syllables: 3)
       expect(process('au hasard')).to have_attributes(aligned: true, phones: 'o-a-zaʁ', syllables: 3)
     end
   end
 
   describe 'diérèse' do
-    it 'coupe un i-glide en deux syllabes avec dierese: true (violent -> vi-jɔ...)' do
+    it 'coupe un i-glide en deux syllabes avec mode: :classique (violent -> vi-jɔ...)' do
       stub_espeak('un violent héros' => 'œ̃vjolɑ̃eʁo')
-      r = described_class.process_line('un violent héros', dierese: true)
+      r = described_class.process_line('un violent héros', mode: :classique)
       expect(r).to have_attributes(aligned: true, dierese: 1, syllables: 6)
       expect(r.phones).to eq('œ̃-vi-jo-lɑ̃-e-ʁo')
     end
 
-    it "ne s'applique pas avec dierese: false" do
+    it "ne s'applique pas avec mode: :contemporain" do
       stub_espeak('un violent héros' => 'œ̃vjolɑ̃eʁo')
       r = process('un violent héros')
       expect(r.dierese).to eq(0)
       expect(r.phones).to eq('œ̃-vjo-lɑ̃-e-ʁo')
     end
 
-    it 'coupe un u-glide en deux syllabes avec dierese: true (nuées -> nu-ées)' do
+    it 'coupe un u-glide en deux syllabes avec mode: :classique (nuées -> nu-ées)' do
       stub_espeak("Vous surgissez ! voici qu'à travers les nuées" =>
                   'vusyʁʒisevwasikatʁavɛʁlenye')
       r = described_class.process_line("Vous surgissez ! voici qu'à travers les nuées",
-                                       dierese: true)
+                                       mode: :classique)
       expect(r).to have_attributes(aligned: true, dierese: 1, syllables: 12)
       expect(r.phones).to eq('vu-syʁ-ʒi-se-vwa-si-ka-tʁa-vɛʁ-le-nu-e')
     end
@@ -442,7 +431,7 @@ RSpec.describe Scansion do
       stub_espeak("Liberté, qu'invoquaient nos voix exténuées," =>
                   'libɛʁtekɛ̃vokɛnovwaɛkstenye')
       r = described_class.process_line("Liberté, qu'invoquaient nos voix exténuées,",
-                                       dierese: true)
+                                       mode: :classique)
       expect(r).to have_attributes(aligned: true, dierese: 1, syllables: 12)
       expect(r.phones).to eq('li-bɛʁ-te-kɛ̃-vo-kɛ-no-vwa-ɛk-ste-nu-e')
     end
@@ -455,18 +444,18 @@ RSpec.describe Scansion do
       expect(r.phones).to eq('vu-syʁ-ʒi-se-vwa-si-ka-tʁa-vɛʁ-le-nye')
     end
 
-    it 'ne scinde pas le « ue » inaccentué même avec dierese: true (ruelle -> ʁyɛl)' do
+    it 'ne scinde pas le « ue » inaccentué même avec mode: :classique (ruelle -> ʁyɛl)' do
       stub_espeak('une ruelle' => 'ynʁyɛl')
-      r = described_class.process_line('une ruelle', dierese: true)
+      r = described_class.process_line('une ruelle', mode: :classique)
       expect(r).to have_attributes(aligned: true, dierese: 0, syllables: 3)
       expect(r.phones).to eq('y-nə-ʁyɛl')
     end
 
-    it 'coupe le « ua » final en deux syllabes avec dierese: true (ruas -> ru-as)' do
+    it 'coupe le « ua » final en deux syllabes avec mode: :classique (ruas -> ru-as)' do
       stub_espeak('Toi qui, le front levé, te ruas dans le crime,' =>
                   'twakiləfʁɔ̃ləvetəʁyadɑ̃ləkʁim')
       r = described_class.process_line('Toi qui, le front levé, te ruas dans le crime,',
-                                       dierese: true)
+                                       mode: :classique)
       expect(r).to have_attributes(aligned: true, dierese: 1, syllables: 12)
       expect(r.phones).to eq('twa-ki-lə-fʁɔ̃-lə-ve-tə-ʁu-a-dɑ̃-lə-kʁim')
     end
@@ -480,18 +469,18 @@ RSpec.describe Scansion do
       expect(r.phones).to eq('twa-ki-lə-fʁɔ̃-lə-ve-tə-ʁya-dɑ̃-lə-kʁim')
     end
 
-    it 'ne scinde pas le « ua » interne (nuage -> nyaʒ, 1 syllabe) même avec dierese: true' do
+    it 'ne scinde pas le « ua » interne (nuage -> nyaʒ, 1 syllabe) même avec mode: :classique' do
       stub_espeak('un nuage' => 'œ̃nyaʒ')
-      r = described_class.process_line('un nuage', dierese: true)
+      r = described_class.process_line('un nuage', mode: :classique)
       expect(r).to have_attributes(aligned: true, dierese: 0, syllables: 2)
       expect(r.phones).to eq('œ̃-nyaʒ')
     end
 
-    it 'coupe le « ou » devant « a » avec dierese: true (couardise -> cou-ar-dise)' do
+    it 'coupe le « ou » devant « a » avec mode: :classique (couardise -> cou-ar-dise)' do
       stub_espeak('Malgré ta couardise, il faut combattre, allons !' =>
                   'malgʁetakwaʁdizilfokɔ̃batʁalɔ̃')
       r = described_class.process_line('Malgré ta couardise, il faut combattre, allons !',
-                                       dierese: true)
+                                       mode: :classique)
       expect(r).to have_attributes(aligned: true, dierese: 1, syllables: 12)
       expect(r.phones).to eq('mal-gʁe-ta-ku-aʁ-diz-il-fo-kɔ̃-batʁ-a-lɔ̃')
     end
@@ -521,7 +510,7 @@ RSpec.describe Scansion do
     end
     it 'pluriel en -s : hydres -> zi-dʁə (12 syllabes)' do
       stub_espeak('Ne voit-il pas ramper les hydres sur leurs ventres ?' => 'nəvwailpaʁɑ̃pelezidʁsyʁlœʁvɑ̃tʁ')
-      r = process('Ne voit-il pas ramper les hydres sur leurs ventres ?', dierese: :auto)
+      r = process('Ne voit-il pas ramper les hydres sur leurs ventres ?', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('nə-vwa-il-pa-ʁɑ̃-pe-le-zi-dʁə-syʁ-lœʁ-vɑ̃tʁ')
     end
@@ -545,25 +534,25 @@ RSpec.describe Scansion do
     end
     it 'œuvre -> nœ-vʁə (12 syllabes)' do
       stub_espeak("Parce qu'il ne fait pas son œuvre tout de suite," => 'paʁskilnəfɛpasɔ̃nœvʁtudəsyit')
-      r = process("Parce qu'il ne fait pas son œuvre tout de suite,", dierese: :auto)
+      r = process("Parce qu'il ne fait pas son œuvre tout de suite,", mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('paʁ-sə-kil-nə-fɛ-pa-sɔ̃-nœ-vʁə-tu-də-syit')
     end
     it 'entendre -> tɑ̃-dʁə (12 syllabes)' do
       stub_espeak("Pour t'entendre sonner, je monte sur ma tour," => 'puʁtɑ̃tɑ̃dʁsɔneʒəmɔ̃tsyʁmatuʁ')
-      r = process("Pour t'entendre sonner, je monte sur ma tour,", dierese: :auto)
+      r = process("Pour t'entendre sonner, je monte sur ma tour,", mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('puʁ-tɑ̃-tɑ̃-dʁə-sɔ-ne-ʒə-mɔ̃-tə-syʁ-ma-tuʁ')
     end
     it 'combattre -> kɔ̃-batʁ (12 syllabes avec la diérèse de couardise)' do
       stub_espeak('Malgré ta couardise, il faut combattre, allons !' => 'malgʁetakwaʁdizilfokɔ̃batʁalɔ̃')
-      r = described_class.process_line('Malgré ta couardise, il faut combattre, allons !', dierese: true)
+      r = described_class.process_line('Malgré ta couardise, il faut combattre, allons !', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('mal-gʁe-ta-ku-aʁ-diz-il-fo-kɔ̃-batʁ-a-lɔ̃')
     end
     it 'diérèse u+eu : majestueux -> ma-jes-tu-eux (6 syllabes)' do
       stub_espeak('Majestueux amour !' => 'maʒɛstyøzamuʁ')
-      r = described_class.process_line('Majestueux amour !', dierese: true)
+      r = described_class.process_line('Majestueux amour !', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 6)
       expect(r.phones).to eq('ma-ʒɛs-tu-ø-za-muʁ')
     end
@@ -581,25 +570,25 @@ RSpec.describe Scansion do
     end
     it 'idem : aligné à 12 syllabes' do
       stub_espeak('Mais, quand nous étendons les bras dans cette brume,' => 'mɛkɑ̃nuzetɑ̃dɔ̃lebʁadɑ̃sɛtbʁym')
-      r = process('Mais, quand nous étendons les bras dans cette brume,', dierese: :auto)
+      r = process('Mais, quand nous étendons les bras dans cette brume,', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('mɛ-kɑ̃-nu-ze-tɑ̃-dɔ̃-le-bʁa-dɑ̃-sɛ-tə-bʁym')
     end
     it "« nous nous » : le n initial de « nous » n'est PAS légué (régression)" do
       stub_espeak("Nous entendons quelqu'un derrière nous nous dire :" => 'nuzɑ̃tɑ̃dɔ̃kɛlkœ̃dɛʁjɛʁnunudiʁ')
-      r = process("Nous entendons quelqu'un derrière nous nous dire :", dierese: :auto)
+      r = process("Nous entendons quelqu'un derrière nous nous dire :", mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('nu-zɑ̃-tɑ̃-dɔ̃-kɛlk-œ̃-dɛ-ʁjɛ-ʁə-nu-nu-diʁ')
     end
     it 'suite nasale « ɑ̃i » scindée à la frontière : comment-il = 3 syllabes (8 au total)' do
       stub_espeak("Comment il fait tout ce qu'il fait." => 'kɔmɑ̃ilfɛtusəkilfɛ')
-      r = process("Comment il fait tout ce qu'il fait.", dierese: :auto)
+      r = process("Comment il fait tout ce qu'il fait.", mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 8)
       expect(r.phones).to eq('kɔ-mɑ̃-il-fɛ-tu-sə-kil-fɛ')
     end
     it 'idem (8 syllabes)' do
       stub_espeak("Je sais comment il a fait l'homme," => 'ʒəsɛkɔmɑ̃ilafɛlɔm')
-      r = process("Je sais comment il a fait l'homme,", dierese: :auto)
+      r = process("Je sais comment il a fait l'homme,", mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 8)
       expect(r.phones).to eq('ʒə-sɛ-kɔ-mɑ̃-il-a-fɛ-lɔm')
     end
@@ -635,17 +624,6 @@ RSpec.describe Scansion do
     end
   end
 
-  describe 'contexte classique : bande octosyllabe 6-9' do
-    it 'accepte une fenêtre majoritairement en 6-9' do
-      expect(described_class.classical_context?([8, 8, 7, 8, 8], 2)).to be true
-      expect(described_class.classical_context?([6, 7, 8, 9, 6], 2)).to be true
-    end
-
-    it 'rejette une fenêtre hors bandes (contemporain)' do
-      expect(described_class.classical_context?([5, 4, 3, 2, 4], 2)).to be false
-    end
-  end
-
   describe 'hiatus entre deux mots (count_syllables avec barrières)' do
     it "ne traite pas le y d'un hiatus inter-mot comme un glide (dy-u = 2)" do
       expect(described_class.count_syllables(%w[d y u], [[2, 'étendue', false]])).to eq(2)
@@ -660,31 +638,56 @@ RSpec.describe Scansion do
   describe 'e final des mots en -Cre en contexte classique (cluster_re_pronounced?)' do
     it 'contexte classique : « sombre » compte son e final (sɔ̃-bʁə, 8 syllabes)' do
       stub_espeak('O sombre mer, que me veux-tu ?' => 'osɔ̃bʁmɛʁkəməvøty')
-      r = described_class.process_line('O sombre mer, que me veux-tu ?', dierese: true)
+      r = described_class.process_line('O sombre mer, que me veux-tu ?', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 8)
       expect(r.phones).to eq('o-sɔ̃-bʁə-mɛʁ-kə-mə-vø-ty')
     end
-    it 'mode contemporain : « sombre » reste 1 syllabe (sɔ̃bʁ, 7 syllabes ; « que »/« me » gardent leur e fixe)' do
+    it 'mode contemporain : « sombre » devant « mer » (labiale m) garde son e (sɔ̃-bʁə, 8 ; except. 1.5d)' do
       stub_espeak('O sombre mer, que me veux-tu ?' => 'osɔ̃bʁmɛʁkəməvøty')
       r = process('O sombre mer, que me veux-tu ?')
-      expect(r).to have_attributes(aligned: true, syllables: 7)
-      expect(r.phones).to eq('o-sɔ̃bʁ-mɛʁ-kə-mə-vø-ty')
+      expect(r).to have_attributes(aligned: true, syllables: 8)
+      expect(r.phones).to eq('o-sɔ̃-bʁə-mɛʁ-kə-mə-vø-ty')
+    end
+    it 'mode contemporain, exception 1.5d : « votre part » -> vo-tʁə-paʁ (6 syllabes)' do
+      stub_espeak('ait lieu de votre part' => 'ɛljødəvotʁpaʁ')
+      r = process('ait lieu de votre part')
+      expect(r).to have_attributes(aligned: true, syllables: 6)
+      expect(r.phones).to eq('ɛ-ljø-də-vo-tʁə-paʁ')
+    end
+    it 'mode contemporain, exception 1.5d : « votre rang » -> vo-tʁə-ʁɑ̃ (double r évité)' do
+      stub_espeak('votre rang' => 'votʁʁɑ̃')
+      r = process('votre rang')
+      expect(r).to have_attributes(aligned: true, syllables: 3)
+      expect(r.phones).to eq('vo-tʁə-ʁɑ̃')
+    end
+    # -ure devant « r » : le e tombe (« écriture ramène » -> kʁi-tyʁ-ʁa-mɛn) ;
+    # l’exception r de la règle 1.5d ne vaut que pour les vrais -Cre
+    it 'mode contemporain : -ure devant « r » élide son e' do
+      stub_espeak('L’écriture ramène tout au moment présent' => 'lekʁityʁʁamɛntutomomɑ̃pʁezɑ̃')
+      r = process('L’écriture ramène tout au moment présent')
+      expect(r.phones).to include('kʁi-tyʁ-ʁa-mɛn')
+    end
+    it 'mode contemporain : « votre ami » s\'élide normalement (votʁ-a-mi, 3 syllabes)' do
+      stub_espeak('votre ami' => 'votʁami')
+      r = process('votre ami')
+      expect(r).to have_attributes(aligned: true, syllables: 3)
+      expect(r.phones).to eq('votʁ-a-mi')
     end
     it 'contexte classique : « notre » -> no-tʁə (6 syllabes)' do
       stub_espeak('Qui vole à Notre-Dame.' => 'kivɔlanotʁdam')
-      r = described_class.process_line('Qui vole à Notre-Dame.', dierese: true)
+      r = described_class.process_line('Qui vole à Notre-Dame.', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 6)
       expect(r.phones).to eq('ki-vɔl-a-no-tʁə-dam')
     end
     it 'mode contemporain : « notre » -> notʁ (5 syllabes)' do
       stub_espeak('Qui vole à Notre-Dame.' => 'kivɔlanotʁdam')
-      r = process('Qui vole à Notre-Dame.')
+      r = process('Qui vole à Notre-Dame.', mode: :contemporain)
       expect(r).to have_attributes(aligned: true, syllables: 5)
       expect(r.phones).to eq('ki-vɔl-a-notʁ-dam')
     end
     it '« ivre, » devant une pause garde son e compté en classique (i-vʁə, 12 syllabes)' do
       stub_espeak('Le soldat, gai, féroce, ivre, complice obscur,' => 'ləsɔldagefeʁɔsivʁkɔ̃plisɔbskyʁ')
-      r = described_class.process_line('Le soldat, gai, féroce, ivre, complice obscur,', dierese: true)
+      r = described_class.process_line('Le soldat, gai, féroce, ivre, complice obscur,', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('lə-sɔl-da-ge-fe-ʁɔs-i-vʁə-kɔ̃-plis-ɔb-skyʁ')
     end
@@ -702,141 +705,141 @@ RSpec.describe Scansion do
     end
     it "pluriel en -s d'un mot en -vre : « pauvres » -> po-vʁə (6 syllabes)" do
       stub_espeak('Pauvres petits oiseaux !' => 'povʁpətizwazo')
-      r = described_class.process_line('Pauvres petits oiseaux !', dierese: true)
+      r = described_class.process_line('Pauvres petits oiseaux !', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 6)
       expect(r.phones).to eq('po-vʁə-pə-tiz-wa-zo')
     end
   end
 
-  describe 'diérèse ciblée et e des -re en mode :auto (fix_candidate_words)' do
+  describe 'diérèse ciblée et e des -re en mode classique (fix_candidate_words)' do
     it 'diérèse du « ou » devant « é » (dénoué -> dé-nu-é, 12 syllabes)' do
       stub_espeak('Et voici dénoué le fil de mes pensées;' => 'evwasidenweləfildəmepɑ̃se')
-      r = described_class.process_line('Et voici dénoué le fil de mes pensées;', dierese: true)
+      r = described_class.process_line('Et voici dénoué le fil de mes pensées;', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('e-vwa-si-de-nu-e-lə-fil-də-me-pɑ̃-se')
     end
-    it ':auto ciblé — e de « gloire » compté (gloi-re -> glwa-ʁə), 12 syllabes sans diérèse' do
+    it 'classique ciblé — e de « gloire » compté (gloi-re -> glwa-ʁə), 12 syllabes sans diérèse' do
       stub_espeak('Macbeth règne ; il est plein de gloire. Macbeth, roi,' => 'məkbɛtʁɛɲilɛplɛ̃dəglwaʁməkbɛtʁwa')
-      r = described_class.process_line('Macbeth règne ; il est plein de gloire. Macbeth, roi,', dierese: :auto)
+      r = described_class.process_line('Macbeth règne ; il est plein de gloire. Macbeth, roi,', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('mək-bɛt-ʁɛɲ-il-ɛ-plɛ̃-də-glwa-ʁə-mək-bɛt-ʁwa')
     end
-    it ':auto ciblé — e de « encore » compté (kɔ-ʁə), 12 syllabes' do
+    it 'classique ciblé — e de « encore » compté (kɔ-ʁə), 12 syllabes' do
       stub_espeak('Sous l’azur, un peu pâle encore, les buissons' => 'sulazyʁœ̃pøpalɑ̃kɔʁlebyisɔ̃')
-      r = described_class.process_line('Sous l’azur, un peu pâle encore, les buissons', dierese: :auto)
+      r = described_class.process_line('Sous l’azur, un peu pâle encore, les buissons', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('su-la-zyʁ-œ̃-pø-pal-ɑ̃-kɔ-ʁə-le-byi-sɔ̃')
     end
-    it ':auto ciblé — diérèse i+u de « médium » (me-di-jɔm), 12 syllabes' do
+    it 'classique ciblé — diérèse i+u de « médium » (me-di-jɔm), 12 syllabes' do
       stub_espeak('La flûte au médium a des accents voilés' => 'laflytomedjɔmadezaksɑ̃vwale')
-      r = described_class.process_line('La flûte au médium a des accents voilés', dierese: :auto)
+      r = described_class.process_line('La flûte au médium a des accents voilés', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('la-flyt-o-me-di-jɔ-ma-de-zak-sɑ̃-vwa-le')
     end
   end
 
   describe 'règles 0.1.5 : -ce/-ge/-que/-gue comptés, -ent de 3e pl., diérèses u+a / ou+i ciblées, y-glide' do
-    it ':auto — e de « Pâques » compté (pâ-ques), 12 syllabes' do
+    it 'classique — e de « Pâques » compté (pâ-ques), 12 syllabes' do
       stub_espeak('La nature s’éveille, et c’est Pâques-fleuries!' => 'lanatyʁsevɛjesɛpakfløʁi')
-      r = described_class.process_line('La nature s’éveille, et c’est Pâques-fleuries!', dierese: :auto)
+      r = described_class.process_line('La nature s’éveille, et c’est Pâques-fleuries!', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('la-na-ty-ʁə-se-vɛj-e-sɛ-pa-kə-flø-ʁi')
     end
 
-    it ':auto — e de « algue » compté (al-gue), 12 syllabes' do
+    it 'classique — e de « algue » compté (al-gue), 12 syllabes' do
       stub_espeak('Ne sent point le baiser de l’algue qui le frôle.' => 'nəsɑ̃pwɛ̃ləbɛzedəlalgkiləfʁol')
-      r = described_class.process_line('Ne sent point le baiser de l’algue qui le frôle.', dierese: :auto)
+      r = described_class.process_line('Ne sent point le baiser de l’algue qui le frôle.', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('nə-sɑ̃-pwɛ̃-lə-bɛ-ze-də-lal-gə-ki-lə-fʁol')
     end
 
-    it ':auto — e de « vagues » compté (va-gues), 12 syllabes' do
+    it 'classique — e de « vagues » compté (va-gues), 12 syllabes' do
       stub_espeak('Les vagues me crachaient leur écume au visage!...' => 'levagməkʁaʃɛlœʁekymovizaʒ')
-      r = described_class.process_line('Les vagues me crachaient leur écume au visage!...', dierese: :auto)
+      r = described_class.process_line('Les vagues me crachaient leur écume au visage!...', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('le-va-gə-mə-kʁa-ʃɛ-lœʁ-e-kym-o-vi-zaʒ')
     end
 
-    it ':auto — e de « Cantique » compté (can-ti-que), 12 syllabes' do
+    it 'classique — e de « Cantique » compté (can-ti-que), 12 syllabes' do
       stub_espeak('Rosaire des baisers : Cantique des cantiques!' => 'ʁozɛʁdebɛzekɑ̃tikdekɑ̃tik')
-      r = described_class.process_line('Rosaire des baisers : Cantique des cantiques!', dierese: :auto)
+      r = described_class.process_line('Rosaire des baisers : Cantique des cantiques!', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('ʁo-zɛ-ʁə-de-bɛ-ze-kɑ̃-ti-kə-de-kɑ̃-tik')
     end
 
-    it ':auto — e de « calices » compté (ca-li-ces), 12 syllabes' do
+    it 'classique — e de « calices » compté (ca-li-ces), 12 syllabes' do
       stub_espeak('Vois ces calices blancs, ces corolles vermeilles,' => 'vwasekalisblɑ̃sekoʁɔlvɛʁmɛj')
-      r = described_class.process_line('Vois ces calices blancs, ces corolles vermeilles,', dierese: :auto)
+      r = described_class.process_line('Vois ces calices blancs, ces corolles vermeilles,', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('vwa-se-ka-li-sə-blɑ̃-se-ko-ʁɔ-lə-vɛʁ-mɛj')
     end
 
-    it ':auto — e de « rouges » compté (rou-ges), 12 syllabes' do
+    it 'classique — e de « rouges » compté (rou-ges), 12 syllabes' do
       stub_espeak('Les gris aux rouges vifs, la corolle déclose' => 'legʁioʁuʒviflakoʁɔldeklɔz')
-      r = described_class.process_line('Les gris aux rouges vifs, la corolle déclose', dierese: :auto)
+      r = described_class.process_line('Les gris aux rouges vifs, la corolle déclose', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('le-gʁi-o-ʁu-ʒə-vif-la-ko-ʁɔ-lə-de-klɔz')
     end
 
-    it ':auto — e de « jonque » compté (jon-que), 12 syllabes' do
+    it 'classique — e de « jonque » compté (jon-que), 12 syllabes' do
       stub_espeak('Lance une jonque fine arrondissant ses voiles.' => 'lɑ̃synʒɔ̃kfinaʁɔ̃disɑ̃sevwal')
-      r = described_class.process_line('Lance une jonque fine arrondissant ses voiles.', dierese: :auto)
+      r = described_class.process_line('Lance une jonque fine arrondissant ses voiles.', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('lɑ̃s-y-nə-ʒɔ̃-kə-fin-a-ʁɔ̃-di-sɑ̃-se-vwal')
     end
 
-    it ':auto — -ent prononcé de « t’arrivent » (3e pl.), 12 syllabes' do
+    it 'classique — -ent prononcé de « t’arrivent » (3e pl.), 12 syllabes' do
       stub_espeak('Nos cris et nos clameurs t’arrivent en murmures;' => 'nokʁienoklamœʁtaʁivtɑ̃myʁmyʁ')
-      r = described_class.process_line('Nos cris et nos clameurs t’arrivent en murmures;', dierese: :auto)
+      r = described_class.process_line('Nos cris et nos clameurs t’arrivent en murmures;', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('no-kʁi-e-no-kla-mœʁ-ta-ʁi-vɑ̃-ɑ̃-myʁ-myʁ')
     end
 
-    it ':auto — -ent prononcé de « surgissent » (3e pl.), 12 syllabes' do
+    it 'classique — -ent prononcé de « surgissent » (3e pl.), 12 syllabes' do
       stub_espeak('Surgissent à foison. — Savamment, il oppose' => 'syʁʒistafwazɔ̃savamɑ̃ilɔpɔz')
-      r = described_class.process_line('Surgissent à foison. — Savamment, il oppose', dierese: :auto)
+      r = described_class.process_line('Surgissent à foison. — Savamment, il oppose', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('syʁ-ʒi-sɑ̃-a-fwa-zɔ̃-sa-va-mɑ̃-il-ɔ-pɔz')
     end
 
-    it ':auto — diérèse ciblée u+a de « suaves » (su-a-ves), 12 syllabes' do
+    it 'classique — diérèse ciblée u+a de « suaves » (su-a-ves), 12 syllabes' do
       stub_espeak('Les suaves aveux dont la langueur enjôle' => 'lesyavzavødɔ̃lalɑ̃gœʁɑ̃ʒol')
-      r = described_class.process_line('Les suaves aveux dont la langueur enjôle', dierese: :auto)
+      r = described_class.process_line('Les suaves aveux dont la langueur enjôle', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('le-su-a-və-za-vø-dɔ̃-la-lɑ̃-gœʁ-ɑ̃-ʒol')
     end
 
-    it ':auto — diérèse ciblée u+a de « muaient » (mu-a-ient), 12 syllabes' do
+    it 'classique — diérèse ciblée u+a de « muaient » (mu-a-ient), 12 syllabes' do
       stub_espeak('Les sèves se muaient lentement en dictâmes.' => 'lesɛvsəmyɛlɑ̃tmɑ̃ɑ̃diktam')
-      r = described_class.process_line('Les sèves se muaient lentement en dictâmes.', dierese: :auto)
+      r = described_class.process_line('Les sèves se muaient lentement en dictâmes.', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('le-sɛ-və-sə-mu-ɛ-lɑ̃-tə-mɑ̃-ɑ̃-dik-tam')
     end
 
-    it ':auto — diérèse ciblée ou+i de « épanoui » (é-pa-nou-i), 12 syllabes' do
+    it 'classique — diérèse ciblée ou+i de « épanoui » (é-pa-nou-i), 12 syllabes' do
       stub_espeak('Avons épanoui la fleur, mûri le fruit,' => 'avɔ̃zepanwilaflœʁmyʁiləfʁyi')
-      r = described_class.process_line('Avons épanoui la fleur, mûri le fruit,', dierese: :auto)
+      r = described_class.process_line('Avons épanoui la fleur, mûri le fruit,', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('a-vɔ̃-ze-pa-nu-i-la-flœʁ-my-ʁi-lə-fʁyi')
     end
 
-    it ':auto — diérèse ciblée ou+i de « épanouit » (é-pa-nou-it), 12 syllabes' do
+    it 'classique — diérèse ciblée ou+i de « épanouit » (é-pa-nou-it), 12 syllabes' do
       stub_espeak('Elle s’épanouit dans ses béatitudes.' => 'ɛlsepanwidɑ̃sebeatityd')
-      r = described_class.process_line('Elle s’épanouit dans ses béatitudes.', dierese: :auto)
+      r = described_class.process_line('Elle s’épanouit dans ses béatitudes.', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('ɛ-lə-se-pa-nu-i-dɑ̃-se-be-a-ti-tyd')
     end
 
     it 'y-glide — pas d’élision devant « Yosen » (peintre -> pein-tʁə), 12 syllabes' do
       stub_espeak('Le bon peintre Yosen a, dès l’aurore rose,' => 'ləbɔ̃pɛ̃tʁjozɛnadɛloʁɔʁʁɔz')
-      r = described_class.process_line('Le bon peintre Yosen a, dès l’aurore rose,', dierese: :auto)
+      r = described_class.process_line('Le bon peintre Yosen a, dès l’aurore rose,', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('lə-bɔ̃-pɛ̃-tʁə-jo-zɛ-na-dɛ-lo-ʁɔ-ʁə-ʁɔz')
     end
 
     it 'y-glide — liaison conservée devant « yeux » (les yeux -> lez-jø), vers aligné' do
       stub_espeak('Comme dans tes yeux clairs, ô douce beauté blonde!' => 'kɔmdɑ̃tezjøklɛʁodusboteblɔ̃d')
-      r = described_class.process_line('Comme dans tes yeux clairs, ô douce beauté blonde!', dierese: :auto)
+      r = described_class.process_line('Comme dans tes yeux clairs, ô douce beauté blonde!', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('kɔ-mə-dɑ̃-tez-jø-klɛʁ-o-du-sə-bo-te-blɔ̃d')
     end
@@ -852,16 +855,26 @@ RSpec.describe Scansion do
   end
 
   describe 'pluriel en -es/-eux : e muet prononcé avec liaison devant une voyelle (plural_mute_e?)' do
-    it '« nouvelles amours » -> nu-vɛ-lə-za-muʁ (5 syllabes)' do
+    it '« nouvelles amours » -> 5 en classique, 4 en contemporain (règle 1.5d étendue au -es)' do
       stub_espeak('nouvelles amours' => 'nuvɛlzamuʁ')
-      r = process('nouvelles amours')
+      r = process('nouvelles amours', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 5)
       expect(r.phones).to eq('nu-vɛ-lə-za-muʁ')
+      r2 = process('nouvelles amours', mode: :contemporain)
+      expect(r2).to have_attributes(aligned: true, syllables: 4)
+      expect(r2.phones).to eq('nu-vɛl-za-muʁ')
+    end
+
+    it 'les déterminants en -es gardent leur e de liaison même en contemporain (« les yeux » -> 2)' do
+      stub_espeak('les yeux' => 'lezjø')
+      r = process('les yeux', mode: :contemporain)
+      expect(r).to have_attributes(aligned: true, syllables: 2)
+      expect(r.phones).to eq('lez-jø')
     end
 
     it '« des âmes hautaines » -> de-za-mə-o-tɛn (5 syllabes, contexte classique)' do
       stub_espeak('des âmes hautaines' => 'dezamotɛn')
-      r = process('des âmes hautaines', dierese: :auto)
+      r = process('des âmes hautaines', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 5)
       expect(r.phones).to eq('de-za-mə-o-tɛn')
     end
@@ -875,7 +888,7 @@ RSpec.describe Scansion do
 
     it 'devant une consonne le pluriel garde son e en classique (règle 1.5) : « tables blanches » -> 3 syllabes' do
       stub_espeak('tables blanches' => 'tablblɑ̃ʃ')
-      r = process('tables blanches', dierese: :auto)
+      r = process('tables blanches', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 3)
       expect(r.phones).to eq('ta-blə-blɑ̃ʃ')
     end
@@ -897,24 +910,24 @@ RSpec.describe Scansion do
     end
   end
 
-  describe 'e muet prononcé devant une pause en alexandrine (pause_e, :auto uniquement)' do
-    it ':auto — « Dites, sans l’accuser de chercher un esclave, » -> 12 syllabes (di-tə)' do
+  describe 'e muet prononcé devant une pause en alexandrine (pause_e, mode classique uniquement)' do
+    it 'classique — « Dites, sans l’accuser de chercher un esclave, » -> 12 syllabes (di-tə)' do
       stub_espeak('Dites, sans l’accuser de chercher un esclave,' => 'ditsɑ̃lakyzedəʃɛʁʃeœ̃nɛsklav')
-      r = described_class.process_line('Dites, sans l’accuser de chercher un esclave,', dierese: :auto)
+      r = described_class.process_line('Dites, sans l’accuser de chercher un esclave,', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones).to eq('di-tə-sɑ̃-la-ky-ze-də-ʃɛʁ-ʃeʁ-œ̃-nɛ-sklav')
     end
 
-    it 'mode plain (--no-dierese) : la virgule silencie le e caduc, « de » garde son e fixe (11 syllabes)' do
+    it 'mode :contemporain : la virgule silencie le e caduc, « de » garde son e fixe (11 syllabes)' do
       stub_espeak('Dites, sans l’accuser de chercher un esclave,' => 'ditsɑ̃lakyzedəʃɛʁʃeœ̃nɛsklav')
       r = process('Dites, sans l’accuser de chercher un esclave,')
       expect(r).to have_attributes(aligned: true, syllables: 11)
       expect(r.phones).to eq('dit-sɑ̃-la-ky-ze-də-ʃɛʁ-ʃeʁ-œ̃-nɛ-sklav')
     end
 
-    it ':auto — un octosyllabe n’est PAS forcé à 12 (« Ô lâche ! Et peut-être demain, » -> 8)' do
+    it 'classique — un octosyllabe n’est PAS forcé à 12 (« Ô lâche ! Et peut-être demain, » -> 8)' do
       stub_espeak('Ô lâche ! Et peut-être demain,' => 'olaʃepøɛtʁdəmɛ̃')
-      r = described_class.process_line('Ô lâche ! Et peut-être demain,', dierese: :auto)
+      r = described_class.process_line('Ô lâche ! Et peut-être demain,', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 8)
       expect(r.phones).to eq('o-laʃ-e-pø-ɛ-tʁə-də-mɛ̃')
     end
@@ -923,7 +936,7 @@ RSpec.describe Scansion do
   describe 'Result#word_spans (spans mot -> syllabes pour les outils en aval)' do
     it 'découpe « la table ronde » en spans 0 / 1-2 / 3 (contexte classique)' do
       stub_espeak('la table ronde' => 'latablʁɔ̃d')
-      r = process('la table ronde', dierese: :auto)
+      r = process('la table ronde', mode: :classique)
       expect(r.word_spans).to eq([
                                    { word: 'la', first: 0, last: 0 },
                                    { word: 'table', first: 1, last: 2 },
@@ -931,9 +944,20 @@ RSpec.describe Scansion do
                                  ])
     end
 
+    it 'ne vole pas la voyelle initiale du mot suivant (« cerveau alors » -> sɛʁ-vo | a-lɔʁ)' do
+      stub_espeak('cerveau alors' => 'sɛʁvoalɔʁ')
+      r = process('cerveau alors', mode: :contemporain)
+      expect(r).to have_attributes(aligned: true, syllables: 4)
+      expect(r.phones).to eq('sɛʁ-vo-a-lɔʁ')
+      expect(r.word_spans).to eq([
+                                   { word: 'cerveau', first: 0, last: 1 },
+                                   { word: 'alors', first: 2, last: 3 }
+                                 ])
+    end
+
     it "un fragment sans noyau (« l' ») a un span vide (last < first)" do
       stub_espeak('l’accuser de chercher' => 'lakyzedəʃɛʁʃe')
-      r = process('l’accuser de chercher', dierese: :auto)
+      r = process('l’accuser de chercher', mode: :classique)
       expect(r.word_spans.first).to eq({ word: 'l', first: 0, last: -1 })
       expect(r.word_spans[1][:word]).to eq('accuser')
       expect(r.word_spans.last).to eq({ word: 'chercher', first: 4, last: 5 })
@@ -950,7 +974,7 @@ RSpec.describe Scansion do
   describe 'segmentation des groupes voyelle+glide (mark_syllables)' do
     it 'coupe « nuit est » en nyi-ɛ (glide « yi » = noyau, pas un glide sauté)' do
       stub_espeak('Prince ! il faut en finir, — cette nuit est glacée,' => 'pʁɛ̃silfotɑ̃finiʁsɛtnyiɛglase')
-      r = process('Prince ! il faut en finir, — cette nuit est glacée,', dierese: :auto)
+      r = process('Prince ! il faut en finir, — cette nuit est glacée,', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 12)
       expect(r.phones.split('-').size).to eq(12)
       expect(r.phones).to eq('pʁɛ̃s-il-fot-ɑ̃-fi-niʁ-sɛ-tə-nyi-ɛ-gla-se')
@@ -960,14 +984,14 @@ RSpec.describe Scansion do
   describe 'famille « muet » : le « ue » vaut /y.ɛ/ (hiatus)' do
     it '« brisée, muette de souffrance » -> mu-ɛ-tə (3 syllabes), 8 au total (contexte classique)' do
       stub_espeak('brisée, muette de souffrance' => 'bʁizemyɛtdəsufʁɑ̃s')
-      r = process('brisée, muette de souffrance', dierese: :auto)
+      r = process('brisée, muette de souffrance', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 8)
       expect(r.phones).to eq('bʁi-ze-mu-ɛ-tə-də-su-fʁɑ̃s')
     end
 
     it 'mode contemporain : e caduc de « muette » non compté, mais « de » garde son e fixe (7)' do
       stub_espeak('brisée, muette de souffrance' => 'bʁizemyɛtdəsufʁɑ̃s')
-      r = process('brisée, muette de souffrance')
+      r = process('brisée, muette de souffrance', mode: :contemporain)
       expect(r).to have_attributes(aligned: true, syllables: 7)
       expect(r.phones).to eq('bʁi-ze-mu-ɛt-də-su-fʁɑ̃s')
     end
@@ -1024,7 +1048,7 @@ RSpec.describe Scansion do
       lines = ['les gouttes du dernier envol', 'ciselant le cristal orange',
                'du nœud de l’horizon', 'font un reflet sur ta peau d’ange',
                'duveteuse à partir du col']
-      res = described_class.process_lines(lines, dierese: false)
+      res = described_class.process_lines(lines, mode: :contemporain)
       # compte plain = 7 (gouttes -> gut), tiré à 8 par le contexte octosyllabe
       expect(res[0].syllables).to eq(8)
       expect(res[0].phones).to eq('le-gu-tə-dy-dɛʁ-njeʁ-ɑ̃-vɔl')
@@ -1037,9 +1061,52 @@ RSpec.describe Scansion do
                   'morte, je t’ai vite oubliée' => 'mɔʁtʒətivublie')
       lines = ['morte, je t’ai vite oubliée', 'mes pères criaient dessous mes pieds',
                'dessous mon âme leur histoire']
-      res = described_class.process_lines(lines, dierese: false)
+      res = described_class.process_lines(lines, mode: :contemporain)
       expect(res[1].syllables).to eq(8)
       expect(res[1].phones).to eq('me-pɛʁ-kʁi-ɛ-də-su-me-pje')
+    end
+  end
+
+  describe 'Classique.detect_mode (détection du régime, mode :auto)' do
+    it ':classique si >= 70 % des comptes (1re passe) tombent sur un mètre pair [6,8,10,12]' do
+      expect(Scansion::Classique.detect_mode([12, 12, 12, 11, 12, 8, 12])).to eq(:classique)
+      expect(Scansion::Classique.detect_mode([8, 8, 8, 8, 9])).to eq(:classique)
+    end
+
+    it ':contemporain sinon (comptes impairs / irréguliers)' do
+      expect(Scansion::Classique.detect_mode([7, 5, 9, 11, 7, 6, 5])).to eq(:contemporain)
+      expect(Scansion::Classique.detect_mode([12, 12, 7, 5])).to eq(:contemporain)
+      expect(Scansion::Classique.detect_mode([])).to eq(:contemporain)
+      expect(Scansion::Classique.detect_mode([nil, nil])).to eq(:contemporain)
+    end
+
+    it 'prend en compte les rimes strictes de fin de vers (à partir de 4 vers)' do
+      # mètres pairs + rimes croisées (ABAB) -> classique
+      expect(Scansion::Classique.detect_mode([12] * 8, keys: %w[a b a b a b a b])).to eq(:classique)
+      # mètres pairs + rimes plates (AABB) -> classique
+      expect(Scansion::Classique.detect_mode([8] * 10, keys: %w[a a b b a a b b a a])).to eq(:classique)
+      # mètres pairs mais vers blanc (aucune rime) -> contemporain
+      expect(Scansion::Classique.detect_mode([12] * 8, keys: %w[a b c d e f g h])).to eq(:contemporain)
+      # octosyllabes SANS rimes de fin de vers -> contemporain
+      expect(Scansion::Classique.detect_mode([8] * 10, keys: (1..10).map { |i| "k#{i}" })).to eq(:contemporain)
+      # moins de 4 vers : le critère de rime ne s'applique pas (mètres seuls)
+      expect(Scansion::Classique.detect_mode([12, 12, 12], keys: %w[a b c])).to eq(:classique)
+    end
+
+    it 'Classique.rhyme_key : voyelle de la dernière syllabe jusqu’à la fin, nasales aplaties' do
+      fake = ->(phones) { Struct.new(:phones).new(phones) }
+      expect(Scansion::Classique.rhyme_key(fake.call('ka-ʁe'))).to eq('e') # carrée
+      expect(Scansion::Classique.rhyme_key(fake.call('a-ʁɛ-te'))).to eq('e') # arrêté
+      expect(Scansion::Classique.rhyme_key(fake.call('am'))).to eq('a') # âme
+      expect(Scansion::Classique.rhyme_key(fake.call('pɔʁ'))).to eq('ɔʁ') # port
+    end
+
+    it 'process_lines en :auto applique le régime détecté à tout le texte' do
+      stub_espeak('la belle table ronde' => 'labɛltablʁɔ̃d')
+      # 1re passe : 6 (pair) -> :classique -> e muet compté -> 6
+      rs = described_class.process_lines(['la belle table ronde'] * 3)
+      expect(rs.map(&:syllables)).to eq([6, 6, 6])
+      expect(rs.first.phones).to eq('la-bɛ-lə-ta-blə-ʁɔ̃d')
     end
   end
 end

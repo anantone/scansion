@@ -12,15 +12,21 @@
 
 require 'open3'
 require_relative 'version'
+require_relative 'classique'
 
 # Module principal du gem scansion : scansion (syllabification) des vers
 # français — phonétisation espeak-ng via phonemizer_ffi, alignement
 # lettres/phonèmes, restauration du e muet, diérèses contextuelles et
 # comptage des syllabes. Voir docs/scansion_rules.txt pour les règles.
-# Points d'entrée : Scansion.process_line, Scansion.process_lines,
-# Scansion.espeak.
+# Points d'entrée : Scansion.process_line / process_lines (paramètre mode:),
+# Scansion.detect_mode, Scansion.espeak.
 module Scansion
   SCHWA = 'ə'
+  # Mètres de vers reconnus (tirage contextuel, règles 2.5/2.6).
+  METRES = [6, 8, 10, 12].freeze
+  # Mots d'une ligne potentiellement soumis à diérèse (règles 1.4c) : « i » suivi
+  # d'une voyelle (sauf hier), « u » suivi de é/è/eu ou d'un a final, « ou » suivi de a.
+  MOT_DIERESE = /i[aàâäeéèêoôöœu]|u[éè]|ueu|ua|oui|oua/
 
   PHONEME_VOYELLE = /[aeiouyɛɔəɑøœæɒʌɪ]/
   LETTRE_VOYELLE = /[aeiouyàâäéèêëîïoôöùûüœ]/
@@ -86,6 +92,12 @@ module Scansion
   # s'élident que devant une voyelle (élision : « l'ami », « qu'amer »).
   SCHWA_STABLE = %w[le de me te se que qu ne je ce].freeze
 
+  # Déterminants en -es/-x dont le e de liaison reste prononcé devant une
+  # voyelle même en mode contemporain (« les yeux » -> le-zjø, « mes yeux »
+  # -> me-zjø) ; pour les autres noms/adjectifs en -es (« jambes ouvertes »)
+  # le e de liaison n'est PAS compté en mode contemporain (règle 1.5d étendue).
+  PLURAL_ES_DETS = %w[les des mes tes ses ces nos vos leurs].freeze
+
   # dévoisement final tel que le rend espeak-ng (Austerlitz -> ...lits)
   ASSOURDISSEMENT_FINAL = { 'z' => 's', 'd' => 't', 'b' => 'p', 'g' => 'k', 'v' => 'f' }.freeze
 
@@ -137,7 +149,7 @@ module Scansion
     :word, :segs, :out, :i, :cursor, :n,
     :prev_cons, :prev_vowel_phone, :run_split,
     :next_vowel_initial, :next_word, :prev_fragment, :dierese,
-    :dierese_words, :cluster_words, :ent_words, :count_mute_e,
+    :dierese_words, :cluster_words, :ent_words, :count_mute_e, :mute_e_words,
     keyword_init: true
   ) do
     # Diérèse active pour le mot courant : en mode ciblé (dierese_words
@@ -147,9 +159,9 @@ module Scansion
       dierese_words ? dierese_words.include?(word) : dierese
     end
 
-    # e final d'un mot en -re compté (contexte classique) : même ciblage
-    # que la diérèse via cluster_words. count_mute_e (1re passe de :auto)
-    # active aussi ce comptage sans activer les diérèses.
+    # e final d'un mot en -re compté (mode classique) : même ciblage
+    # que la diérèse via cluster_words. count_mute_e (1re passe du mode
+    # classique) active aussi ce comptage sans activer les diérèses.
     def cluster_on?
       cluster_words ? cluster_words.include?(word) : (dierese || count_mute_e)
     end
@@ -228,11 +240,18 @@ module Scansion
     end
 
     # Une lettre voyelle face à la tête de segment courante.
+    # -es pluriel non déterminant en mode contemporain : PAS de restauration du
+    # schwa de liaison (règle 1.5d étendue, voir Scansion.plural_es_contemporain?)
+    def plural_es_skip?
+      Scansion.plural_es_contemporain?(word, dierese, count_mute_e, mute_e_words)
+    end
+
     def step_vowel(ch, head, head_vowel)
       # pluriel en -es devant un mot à initiale vocalique : le e muet est
       # PRONONCÉ avec liaison du s (« nouvelles amours » -> nu-vɛ-lə-za-muʁ)
       if ch == 'e' && word[i..].to_s == 'es' && next_vowel_initial &&
-         !head_vowel && Scansion.plural_mute_e?(word)
+         !head_vowel && Scansion.plural_mute_e?(word) &&
+         !plural_es_skip?
         out << [SCHWA, true]
         self.i += 1
         self.prev_vowel_phone = true
@@ -249,9 +268,11 @@ module Scansion
          !word[i..].to_s.end_with?('x') && # le x de -aux/-eux peut faire liaison (beaux yeux)
          !Scansion.ent_tail?(word, i) # -ent a sa propre règle
         # pluriel en -es devant une voyelle : le e muet est prononcé avec
-        # liaison du s (« nouvelles amours » -> nu-vɛ-lə-za-muʁ)
+        # liaison du s (« nouvelles amours » -> nu-vɛ-lə-za-muʁ), sauf en mode
+        # contemporain pour les non-déterminants (règle 1.5d étendue)
         if word[i..].to_s == 'es' && next_vowel_initial &&
-           Scansion.plural_mute_e?(word)
+           Scansion.plural_mute_e?(word) &&
+           !plural_es_skip?
           out << [SCHWA, true]
         end
         self.i = n
@@ -270,7 +291,9 @@ module Scansion
       # l'a élidé, donc on restaure un schwa SANS consommer la tête de segment
       # (conditions exactes dans elidable_final_e?) ; l'élagage de scansion
       # ci-dessous retire à nouveau ce schwa restauré (élision).
-      if Scansion.elidable_final_e?(word, i, head, out, next_vowel_initial, next_word, dierese)
+      if Scansion.elidable_final_e?(word, i, head, out, next_vowel_initial, next_word, dierese) &&
+         # mode contemporain : -es pluriel non déterminant sans e de liaison
+         !plural_es_skip?
         out << [SCHWA, true]
         self.i += 1
         return true
@@ -440,8 +463,19 @@ module Scansion
         swallow_run = next_vowel_initial && run_vowels > digraph.to_i
         if digraph && !boundary_run && !swallow_run &&
            (run_vowels <= digraph || glide_run)
-          out << [head, false]
-          self.cursor += 1
+          # lettre muette d'une terminaison APRÈS une suite de voyelles déjà
+          # coupée (run_split) devant un mot à initiale vocalique : la voyelle
+          # restante appartient au MOT SUIVANT, la lettre ne la consomme pas
+          # (« cerveau alors » -> sɛʁ-vo | a-lɔʁ, et non sɛʁ-vo-a | lɔʁ —
+          # sinon une frontière de groupe tombe au milieu du mot « alors »)
+          if next_vowel_initial && run_split &&
+             Scansion.silent_tail_from?(word, i) && head[0].match?(PHONEME_VOYELLE)
+            self.run_split = false
+            # rien : on avance la lettre sans consommer de segment
+          else
+            out << [head, false]
+            self.cursor += 1
+          end
           eat = 2
           # la 2e lettre du digramme peut encore être prononcée comme un
           # glide dans son propre segment (ay -> ɛ+j : rayonner -> ʁɛ-jɔn)
@@ -562,7 +596,8 @@ module Scansion
            !word[i - 2].match?(LETTRE_VOYELLE) &&
            Scansion.e_muet_tail?(word, i) &&
            !Scansion.cr_e_pronounced?(word) &&
-           !Scansion.cluster_re_pronounced?(word, cluster_on?)
+           !Scansion.cluster_re_pronounced?(word, cluster_on?) &&
+           !Scansion.re_e_before_r_or_labial?(word, next_word, cluster_on?)
           # e muet après un cluster -Cr- est MUET même devant une consonne :
           # sombre -> sɔ̃bʁ, nombre -> nɔ̃bʁ, mettre -> mɛtʁ, fièvre -> fjɛvʁ
           # (mais tables -> tablə : le -l- est conservé).
@@ -588,7 +623,14 @@ module Scansion
           self.prev_vowel_phone = true
           return true
         end
-        # e muet : c'est ici la restauration
+        # e muet : c'est ici la restauration — sauf -es pluriel non déterminant
+        # en mode contemporain (règle 1.5d étendue : « jambes ouvertes » ->
+        # ʒɑ̃b-zuvɛʁt, sans schwa de liaison)
+        if word[i..].to_s == 'es' && plural_es_skip?
+          self.i += 1
+          self.prev_vowel_phone = true
+          return true
+        end
         out << [SCHWA, true]
         self.i += 1
         self.prev_vowel_phone = true
@@ -764,8 +806,11 @@ module Scansion
         # liaison d'une consonne finale devant une voyelle (les amis -> lɛzami,
         # fronts étoilés -> fʁɔ̃zetwal, quand il -> kɑ̃til, grand ami...)
         # pluriel en -es : le e muet est prononcé avant la liaison
-        # (« nouvelles amours » -> nu-vɛ-lə-za-muʁ)
-        out << [SCHWA, true] if word[i..].to_s.end_with?('es') && Scansion.plural_mute_e?(word)
+        # (« nouvelles amours » -> nu-vɛ-lə-za-muʁ) — sauf en mode
+        # contemporain pour les non-déterminants (règle 1.5d étendue)
+        out << [SCHWA, true] if word[i..].to_s.end_with?('es') &&
+                                Scansion.plural_mute_e?(word) &&
+                                !plural_es_skip?
         out << [head, false]
         self.cursor += 1
         self.i = n
@@ -890,6 +935,16 @@ module Scansion
       l.match?(/[bcdfghjklmnpqrstvwxz]/) || stem.end_with?('qu', 'gu')
     end
 
+    # En mode contemporain (pas de diérèse, e caduc non compté), le -es pluriel
+    # d'un nom/adjectif ne garde PAS son e de liaison devant une voyelle
+    # (« jambes ouvertes » -> ʒɑ̃b-zuvɛʁt) — sauf déterminants (« les yeux »
+    # -> le-zjø, PLURAL_ES_DETS).
+    def plural_es_contemporain?(word, dierese, count_mute_e, mute_e_words = nil)
+      !dierese && !count_mute_e && plural_mute_e?(word) &&
+        !PLURAL_ES_DETS.include?(word.to_s.downcase) && !cr_e_pronounced?(word) &&
+        !(mute_e_words && mute_e_words.include?(word.to_s.downcase))
+    end
+
     def cr_e_pronounced?(word)
       EXCEPTIONS_E_PRONONCE.any? { |w| word == w || ["#{w}s", "#{w}x"].include?(word) }
     end
@@ -905,7 +960,7 @@ module Scansion
     # pauvre, ivre, ombre, sombre, décembre…) est COMPTÉ — no-tre, vi-vre,
     # â-pʁə, mœʁ-tʁə… La règle 1.5d (e muet après -Cr- jamais compté) est une
     # règle de prononciation moderne : elle ne s'applique qu'en mode
-    # contemporain (dierese: false / --no-dierese).
+    # contemporain (mode: :contemporain).
     # En contexte classique, le e final de tout mot en -re est COMPTÉ
     # (notre -> no-tʁə, vivre -> vi-vʁə, mais aussi -ère/-oire/-ire :
     # mère -> mè-re, chère -> chè-re, gloire -> gloi-re, terre -> ter-re…).
@@ -913,6 +968,23 @@ module Scansion
     def cluster_re_pronounced?(word, on)
       w = word.sub(/s\z/, '') # tolérance pour le pluriel en -s (pauvres, gloires…)
       on && (w.end_with?('re') || w.match?(/[cgq]u?e\z/))
+    end
+
+    # Règle 1.5d, exception : en mode contemporain (on == false), le e final
+    # d'un mot en -re/-que/-gue reste PRONONCÉ quand le mot suivant commence
+    # par « r » ou une labiale (p b f v m) — pour éviter le double r ou le
+    # cluster ʁ+labiale (« votre part » -> vo-tʁə-paʁ, et non votʁ-paʁ).
+    def re_e_before_r_or_labial?(word, next_word, on)
+      return false if on
+      return false unless cluster_re_pronounced?(word, true)
+
+      nw = next_word.to_s
+      return true if nw.match?(/\A[pbfvm]/i)
+
+      # devant « r » : l'exception ne vaut que pour les vrais -Cre
+      # (consononne + r + e : « votre rang » -> vo-tʁə-ʁɑ̃) ; après une voyelle
+      # (-ure, -ère, -oire : « écriture ramène » -> kʁi-tyʁ-ʁa-mɛn) le e tombe
+      nw.match?(/\Ar/i) && word.sub(/s\z/, '').match?(/[bcdfghjklmnpqrstvwxz]re\z/)
     end
 
     # word[i] est un e strictement final (terminaison vide ou x) après un
@@ -1140,14 +1212,14 @@ module Scansion
     # ou nil quand le mot ne peut pas être aligné sûrement.
     def align_word(word, segs, cursor, next_vowel_initial: false, next_word: nil,
                    prev_fragment: false, dierese: false, dierese_words: nil,
-                   cluster_words: nil, ent_words: nil, count_mute_e: false)
+                   cluster_words: nil, ent_words: nil, count_mute_e: false, mute_e_words: nil)
       a = Aligner.new(word: word, segs: segs, out: [], i: 0, cursor: cursor,
                       n: word.size, prev_cons: nil, prev_vowel_phone: false,
                       run_split: false, next_vowel_initial: next_vowel_initial,
                       next_word: next_word, prev_fragment: prev_fragment,
                       dierese: dierese, dierese_words: dierese_words,
                       cluster_words: cluster_words, ent_words: ent_words,
-                      count_mute_e: count_mute_e)
+                      count_mute_e: count_mute_e, mute_e_words: mute_e_words)
       a.run ? [a.out, a.cursor] : nil
     end
 
@@ -1208,8 +1280,8 @@ module Scansion
       flags.first(words.size)
     end
 
-    # Mètres de vers attendus (utilisés par dierese: :auto)
-    METRES = [6, 8, 10, 12].freeze
+    # Mètres de vers attendus, pairs (utilisés par le mode classique pour le
+    # re-scan d'un vers hors mètre — Scansion::Classique.auto_line)
 
     # Décompte des syllabes : chaque phone voyelle compte, SAUF un glide
     # rendu « y » (ɥ) directement suivi d'une voyelle — fuyait -> f-yi-jɛ fait
@@ -1234,161 +1306,116 @@ module Scansion
       count
     end
 
-    # Détection de contexte de poésie classique : true quand les lignes
-    # voisines (fenêtre autour de idx) tombent majoritairement dans la bande
-    # alexandrine 10-13 ou la bande octosyllabe 6-9 (11/13 et 7 y sont des
-    # candidats diérèse/surcompte, donc ils appartiennent à la bande). La
-    # diérèse ne peut être inférée que
-    # dans un contexte aussi régulier — JAMAIS en poésie contemporaine
-    # (samples/), où elle ne peut pas être déduite d'un nombre de syllabes
-    # cible. counts : décomptes de syllabes par ligne (nil pour les lignes
-    # vides ou non alignées).
-    def classical_context?(counts, idx, window: 5, threshold: 0.7)
-      lo = [idx - window, 0].max
-      hi = [idx + window, counts.size - 1].min
-      neigh = counts[lo..hi].compact
-      neigh.delete_at(idx - lo) if idx >= lo && idx <= hi
-      return false if neigh.empty?
-
-      # bande alexandrine 10-13 (11/13 = candidats diérèse) OU bande
-      # octosyllabe 6-9 (les 7 y sont des candidats diérèse)
-      neigh.count { |c| (10..13).cover?(c) || (6..9).cover?(c) }.to_f / neigh.size >= threshold
-    end
-
-    # Mètre dominant du contexte (vers voisins) : la valeur de METRES la plus
-    # fréquente parmi les voisins, si elle est majoritaire (>= 70 %).
-    # Sert à « tirer » un vers contemporain régulier vers le mètre du poème
-    # (ex. octosyllabe : un vers de 7 tire l'e caduc pour faire 8).
+    # Mètre dominant du contexte (vers voisins) — voir Scansion::Classique
+    # (context_meter, auto_line, pull_to_meter). Sert en mode contemporain
+    # au tirage vers le mètre (règle 2.5).
     def context_meter(counts, idx, window: 5, threshold: 0.7)
-      lo = [idx - window, 0].max
-      hi = [idx + window, counts.size - 1].min
-      neigh = counts[lo..hi].compact
-      neigh.delete_at(idx - lo) if idx >= lo && idx <= hi
-      return nil if neigh.empty?
-
-      meters = neigh.select { |c| METRES.include?(c) }
-      return nil if meters.size.to_f / neigh.size < threshold
-
-      meters.tally.max_by { |_k, v| v }&.first
+      Classique.context_meter(counts, idx, window: window, threshold: threshold)
     end
 
-    # Point d'entrée public. dierese: :auto re-scanne avec des diérèses quand
-    # le compte brut ne tombe pas sur un mètre de vers (11 -> 12, etc.).
-    # cache : Hash optionnel partagé entre appels (utilisé par process_lines)
-    # pour que chaque paire (ligne, options) ne soit scannée — et espeak-ng
-    # relancé — qu'une fois.
-    # Mots d'une ligne potentiellement soumis à diérèse (règles 1.4c) :
-    # « i » suivi d'une voyelle (sauf hier), « u » suivi de é/è/eu ou d'un a
-    # final, « ou » suivi de a. Servent au re-scan ciblé de process_line(:auto).
-    MOT_DIERESE = /i[aàâäeéèêoôöœu]|u[éè]|ueu|ua|oui|oua/
+    # Détection du régime d'un texte (mode :auto) : :classique ou
+    # :contemporain — voir Scansion::Classique.detect_mode. La 1re passe
+    # compte l'e muet (comptage classique) pour mesurer les longueurs et
+    # extraire les rimes de fin de vers (clés de rime strictes).
+    # @param lines [Array<String>] les vers du poème
+    # @param cache [Hash, nil] cache partagé optionnel
+    # @return [Symbol] :classique ou :contemporain
+    def detect_mode(lines, cache: nil)
+      cache ||= {}
+      results = lines.map do |l|
+        next nil if l.strip.empty?
 
-    # Mots d’une ligne candidats à un « +1 » en contexte classique : diérèse
-    # (règles 1.4c) OU e final compté d’un mot en -re (cluster_re_pronounced?).
-    def fix_candidate_words(line)
-      words_of(normalize_input(line)).select do |w|
-        next false if w == 'hier'
-
-        w.match?(MOT_DIERESE) || w.sub(/s\z/, '').end_with?('re') ||
-          w.match?(/[cgq]u?e[sx]?\z/) || w.end_with?('ent')
+        r = scan_line(l, dierese: false, cache: cache, count_mute_e: true)
+        r.aligned ? r : nil
       end
+      counts = results.map { |r| r&.syllables }
+      keys = results.map { |r| r && Classique.rhyme_key(r) }
+      Classique.detect_mode(counts, keys: keys)
     end
 
-    # Point d'entrée public. dierese: :auto re-scanne avec des diérèses quand
-    # le compte brut ne tombe pas sur un mètre de vers (11 -> 12, etc.) :
-    # d'abord diérèse globale + e des -Cre compté (contexte classique) ;
-    # si le résultat n'atteint pas un mètre, re-scan ciblé — e des -Cre compté
-    # mais diérèse appliquée à UN seul mot candidat à la fois — et on retient
-    # la première variante qui tombe sur un mètre.
-    # cache : Hash optionnel partagé entre appels (utilisé par process_lines)
-    # pour que chaque paire (ligne, options) ne soit scannée — et espeak-ng
-    # relancé — qu'une fois.
+    # Mots candidats à un « +1 » en mode classique — voir Scansion::Classique.
+    def fix_candidate_words(line) = Classique.fix_candidate_words(line)
+
+    # Point d'entrée public. Le régime se choisit par `mode` :
+    #
+    # - :auto (défaut) — détection du régime sur la 1re passe (voir
+    #   Scansion.detect_mode) : pour une ligne seule, :classique si son
+    #   compte (e muet compté) tombe sur un mètre pair [6, 8, 10, 12],
+    #   :contemporain sinon.
+    # - :classique — 1re passe avec l'e muet compté devant une consonne,
+    #   puis re-scan vers un mètre pair [6, 8, 10, 12] si le vers est hors
+    #   mètre (diérèse globale + e des -re comptés, pause_e alexandrine,
+    #   puis ciblage mot à mot) — Scansion::Classique.auto_line. Priorité
+    #   aux longueurs de vers classiques paires, à la césure et aux accents
+    #   de groupe. Aucun tirage 2.6.
+    # - :contemporain — e caduc non compté devant une consonne, pas de
+    #   diérèse. Le tirage vers le mètre du poème (règle 2.5, dans
+    #   process_lines) et le tirage accentuel 2.6 (Scansion::Rythme, dans
+    #   Accents.analyze_line(s)) s'appliquent dans ce régime.
     #
     # @param line [String] un vers (ou une ligne de texte)
-    # @param dierese [Boolean, Symbol] false = e muet non compté devant
-    #   consonne ; true = diérèses appliquées ; :auto = re-scan contextuel
-    #   (voir ci-dessus)
-    # @param cache [Hash, nil] cache partagé optionnel
+    # @param mode [Symbol] :auto (défaut), :classique ou :contemporain
+    # @param cache [Hash, nil] cache partagé optionnel (voir process_lines) :
+    #   chaque paire (ligne, options) n'est scannée — et espeak-ng relancé —
+    #   qu'une fois
     # @return [Scansion::Result] résultat de la scansion
-    def process_line(line, dierese: false, cache: nil)
-      # en mode :auto, la 1re passe garde le comptage classique de l'e muet
-      # devant consonne (sinon elle pourrait tomber sur 10 et arrêter là) ;
-      # en mode plain direct (--no-dierese), l'e muet n'est pas compté.
-      r = scan_line(line, dierese: false, cache: cache,
-                          count_mute_e: dierese != false)
-      if dierese == true
-        r = scan_line(line, dierese: true, cache: cache)
-      elsif dierese == :auto && r.aligned && !METRES.include?(r.syllables)
-        # 1) diérèse globale + e des -re comptés (contexte classique)
-        r2 = scan_line(line, dierese: true, cache: cache)
-        r = r2 if r2.aligned && METRES.include?(r2.syllables)
-        # 1b) e muet prononcé devant une pause graphique (, ; : ! ? …),
-        #     UNIQUEMENT si le vers devient alexandrin (12) : en vers
-        #     irrégulier ou contemporain, la pause silencie le e muet
-        unless METRES.include?(r.syllables)
-          r2b = scan_line(line, dierese: false, pause_e: true, cache: cache)
-          r = r2b if r2b.aligned && r2b.syllables == 12
-        end
-        unless METRES.include?(r.syllables)
-          r2c = scan_line(line, dierese: true, pause_e: true, cache: cache)
-          r = r2c if r2c.aligned && r2c.syllables == 12
-        end
-        # 2) e des -re comptés, aucune diérèse
-        unless METRES.include?(r.syllables)
-          r3 = scan_line(line, dierese: true, dierese_words: [], cache: cache)
-          r = r3 if r3.aligned && METRES.include?(r3.syllables)
-        end
-        # 3) ciblage mot à mot : diérèse sur w seul (e des -re tous comptés),
-        #    puis diérèse + e de -re sur w seul
-        unless METRES.include?(r.syllables)
-          fix_candidate_words(line).each do |w|
-            combos = [[w, nil, nil], [w, [w], nil]]
-            combos << [w, nil, [w]] if w.end_with?('ent')
-            combos.each do |dw, cw, ew|
-              r4 = scan_line(line, dierese: true, dierese_words: dw,
-                                   cluster_words: cw, ent_words: ew, cache: cache)
-              if r4.aligned && METRES.include?(r4.syllables)
-                r = r4
-                break
-              end
-            end
-            break if METRES.include?(r.syllables)
-          end
-        end
+    def process_line(line, mode: :auto, cache: nil)
+      if mode == :auto
+        r0 = scan_line(line, dierese: false, cache: cache, count_mute_e: true)
+        mode = Classique.detect_mode([r0.aligned ? r0.syllables : nil])
       end
+      unless %i[classique contemporain].include?(mode)
+        raise ArgumentError,
+              "mode inconnu : #{mode.inspect} (attendu : :auto, :classique, :contemporain)"
+      end
+
+      classique = (mode == :classique)
+      # la 1re passe garde le comptage classique de l'e muet devant consonne
+      # en mode classique (sinon elle pourrait tomber sur 10 et arrêter là) ;
+      # en mode contemporain, l'e muet n'est pas compté.
+      r = scan_line(line, dierese: false, cache: cache,
+                          count_mute_e: classique)
+      # mode classique : re-scan vers un mètre pair si hors mètre
+      # (diérèses, e des -re, pause_e alexandrine, ciblage mot à mot)
+      r = Classique.auto_line(line, r, cache: cache) if classique
       r
     end
 
-    # Point d'entrée par lot (deux passes). Avec dierese: :auto, la diérèse
-    # n'est appliquée que là où le contexte alentour est classique
-    # (classical_context?) — jamais en poésie contemporaine.
+    # Point d'entrée par lot. Le régime se choisit par `mode` pour TOUT le
+    # texte — :auto (défaut) détecte le régime sur une 1re passe (voir
+    # Scansion.detect_mode : majorité de mètres pairs -> :classique), ou
+    # :classique / :contemporain explicitement (cas limites).
+    #
+    # En mode contemporain, la règle 2.5 s'applique (Scansion::Classique
+    # .pull_to_meter) : un vers hors mètre [6,8,10,12] est re-scanné avec l'e
+    # caduc compté quand les vers voisins ont un mètre dominant M
+    # (context_meter), retenu si le résultat fait exactement M —
+    # « les gouttes du dernier envol » -> 8 dans un poème d'octosyllabes.
     #
     # @param lines [Array<String>] les vers du poème
-    # @param dierese [Boolean, Symbol] voir #process_line
+    # @param mode [Symbol] :auto (défaut), :classique ou :contemporain
+    # @param cache [Hash, nil] cache partagé optionnel (aussi réutilisé par la
+    #   couche accents pour le tirage contemporain, règle 2.6)
     # @return [Array<Scansion::Result>] un résultat par ligne (dans l'ordre)
-    def process_lines(lines, dierese: :auto)
-      cache = {}
+    def process_lines(lines, mode: :auto, cache: nil)
+      cache ||= {}
       counts = lines.map do |l|
         next nil if l.strip.empty?
 
         r = scan_line(l, dierese: false, cache: cache, count_mute_e: true)
         r.aligned ? r.syllables : nil
       end
+      mode = Classique.detect_mode(counts) if mode == :auto
+      unless %i[classique contemporain].include?(mode)
+        raise ArgumentError,
+              "mode inconnu : #{mode.inspect} (attendu : :auto, :classique, :contemporain)"
+      end
       lines.each_with_index.map do |l, i|
-        d = case dierese
-            when :auto then (classical_context?(counts, i) ? :auto : false)
-            else dierese
-            end
-        r = process_line(l, dierese: d, cache: cache)
-        # vers contemporain régulier (--no-dierese) : si le compte plain ne
-        # tombe pas sur un mètre mais que les vers voisins sont unanimes sur
-        # un mètre M, compter l'e caduc (sans diérèse) pour atteindre M —
-        # « les gouttes du dernier envol » -> 8 dans un poème d'octosyllabes
-        if d == false && r.aligned && !METRES.include?(r.syllables)
-          m = context_meter(counts, i)
-          if m
-            r2 = scan_line(l, dierese: false, cache: cache, count_mute_e: true)
-            r = r2 if r2.aligned && r2.syllables == m
-          end
+        r = process_line(l, mode: mode, cache: cache)
+        # règle 2.5 (Scansion::Classique) : mode contemporain seulement —
+        # vers régulier hors mètre tiré vers le mètre dominant M voisin
+        if mode == :contemporain && r.aligned && !METRES.include?(r.syllables)
+          r = Classique.pull_to_meter(l, counts, i, cache: cache) || r
         end
         r
       end
@@ -1398,16 +1425,18 @@ module Scansion
     # (voir process_lines), chaque paire (ligne, dierese)
     # n'est calculée — et espeak-ng relancé — qu'une fois.
     def scan_line(line, dierese: false, cache: nil, dierese_words: nil, cluster_words: nil,
-                  ent_words: nil, pause_e: false, count_mute_e: false)
+                  ent_words: nil, pause_e: false, count_mute_e: false,
+                  mute_e_words: nil)
       if cache
-        key = [line, dierese, dierese_words, cluster_words, ent_words, pause_e, count_mute_e]
+        key = [line, dierese, dierese_words, cluster_words, ent_words, pause_e, count_mute_e,
+               mute_e_words]
         return cache[key] if cache.key?(key)
 
         return cache[key] = compute_scan_line(line, dierese: dierese,
                                                     dierese_words: dierese_words,
                                                     cluster_words: cluster_words,
                                                     ent_words: ent_words, pause_e: pause_e,
-                                                    count_mute_e: count_mute_e)
+                                                    count_mute_e: count_mute_e, mute_e_words: mute_e_words)
       end
       compute_scan_line(line, dierese: dierese, dierese_words: dierese_words,
                               cluster_words: cluster_words, ent_words: ent_words, pause_e: pause_e,
@@ -1415,7 +1444,8 @@ module Scansion
     end
 
     def compute_scan_line(line, dierese: false, dierese_words: nil, cluster_words: nil,
-                          ent_words: nil, pause_e: false, count_mute_e: false)
+                          ent_words: nil, pause_e: false, count_mute_e: false,
+                          mute_e_words: nil)
       # normalise une fois pour que words_of et espeak voient les mêmes lettres
       clean = normalize_input(line)
       words = words_of(clean)
@@ -1465,20 +1495,27 @@ module Scansion
         next_word = (words_out[k + 1] || {})[:word]
         # un e final PRONONCÉ (EXCEPTIONS_E_PRONONCE, ou -Cre en contexte classique)
         # reste compté même devant une pause : « ivre, complice » -> i-vʁə (2)
-        pronounced = cr_e_pronounced?(w[:word]) ||
+        on = cluster_words ? cluster_words.include?(w[:word]) : (dierese || count_mute_e)
+        pronounced = mute_e_words&.include?(w[:word]) ||
+                     cr_e_pronounced?(w[:word]) ||
                      cluster_re_pronounced?(w[:word],
-                                            cluster_words ? cluster_words.include?(w[:word]) : dierese)
+                                            cluster_words ? cluster_words.include?(w[:word]) : dierese) ||
+                     re_e_before_r_or_labial?(w[:word], next_word, on)
         if next_word.nil? # fin de vers : e muet non compté
           pairs.pop
-        elsif elides_before?(next_word) && !plural_mute_e?(w[:word])
+        elsif elides_before?(next_word) &&
+              (!plural_mute_e?(w[:word]) ||
+               # mode contemporain : le -es pluriel non déterminant ne garde
+               # pas son e de liaison (« jambes ouvertes » -> ʒɑ̃b-zu-vɛʁt)
+               (!dierese && !pause_e && !count_mute_e && !PLURAL_ES_DETS.include?(w[:word])))
           pairs.pop # élision devant une voyelle / un h muet (sauf pluriel -es/-eux : e prononcé)
         elsif paused[k] && !pronounced && !pause_e
           pairs.pop # devant une pause (, ; : ! ? …) ; pause_e : e compté (alexandrine)
         elsif !dierese && !pause_e && !count_mute_e && !pronounced &&
               !stable_schwa?(w[:word])
-          # mode contemporain (--no-dierese) : l'e CADUC n'est jamais compté
+          # mode contemporain (mode: :contemporain) : l'e CADUC n'est jamais compté
           # devant une consonne (« mes pères criaient » -> pɛʁ, 8 syllabes) ;
-          # en contexte classique (dierese/:auto, pause_e) il reste compté.
+          # en mode classique (mode: :classique, pause_e) il reste compté.
           # Exception : le schwa des monosyllabes grammaticaux (le, de, me,
           # te, se, que, ne, je, ce) est un « e fixe » — jamais élidé devant
           # une consonne (« le passé » -> lə-pa-se, 8 syllabes et non 7)

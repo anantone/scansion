@@ -21,15 +21,20 @@ module Scansion
     # l'hôte, pas de mutation d'encodage global.
     #
     # @param argv [Array<String>] arguments de la ligne de commande
-    #   (options --no-dierese, -s/--syllables, -h/--help, puis FILE ou « - »
-    #   pour lire l'entrée standard)
+    #   (options --classique/--contemporain pour forcer le régime, sinon
+    #   détection automatique :auto, puis -s/--syllables, -h/--help, et
+    #   FILE ou « - » pour lire l'entrée standard)
     # @return [void]
     def main(argv = ARGV)
-      options = { syllables_only: false, dierese: :auto }
+      options = { syllables_only: false, mode: :auto } # défaut : détection automatique
       OptionParser.new do |opts|
         opts.banner = "Utilisation : #{File.basename($PROGRAM_NAME)} [options] [FILE|-]"
-        opts.on('--no-dierese', 'Désactiver la diérèse contextuelle (corpus contemporain)') do
-          options[:dierese] = false
+        opts.on('--classique', 'Forcer le mode classique : e muet compté, re-scan vers un mètre pair') do
+          options[:mode] = :classique
+        end
+        opts.on('--contemporain',
+                'Forcer le mode contemporain : e caduc non compté, tirage 2.6') do
+          options[:mode] = :contemporain
         end
         opts.on('-s', '--syllables', 'Afficher seulement le décompte des syllabes') do
           options[:syllables_only] = true
@@ -72,7 +77,7 @@ module Scansion
         end
 
       lines = lines.to_a.map(&:chomp)
-      process_lines(lines, dierese: options[:dierese]).each do |res|
+      process_lines(lines, mode: options[:mode]).each do |res|
         next if res.text.strip.empty?
 
         if options[:syllables_only]

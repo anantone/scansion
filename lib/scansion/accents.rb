@@ -17,6 +17,11 @@
 #      ou un déterminant ouvrant un nouveau syntagme (sauf si le mot
 #      précédent est fonctionnel ou une préposition : « à partir du col »,
 #      « que le fond ») ; plus après chaque ponctuation et en fin de vers.
+#      En mode CONTEMPORAIN (mode: :contemporain) s'ajoutent : une frontière entre
+#      deux mots pleins (« de bile | noire »), « alors » en conjonction
+#      (« cerveau | alors que rien »), et aucune frontière ne tombe à
+#      l'intérieur d'un mot (l'aligneur rend la voyelle initiale au mot
+#      suivant : « cerveau alors » -> sɛʁ-vo | a-lɔʁ).
 #      Un accent par groupe, sur sa dernière syllabe accentuable ; l'accent
 #      du dernier groupe est la rime. Si aucun groupe ne se termine avant la
 #      césure (6//6, 4//4), une frontière y est forcée.
@@ -37,6 +42,7 @@
 #   Scansion::Accents.analyze_lines(File.readlines("corpus.txt", chomp: true))
 
 require_relative 'syllabification'
+require_relative 'rythme'
 require 'phonemizer_ffi'
 
 module Scansion
@@ -80,6 +86,14 @@ module Scansion
                    autre autres même mêmes chacun chacune chaque].to_h { |w| [w, true] }.freeze
     MOTS_FONCTIONNELS = PREPOSITIONS.merge(DETERMINANTS).merge(CONJONCTIONS)
                                     .merge(AUXILIAIRES).merge(PRONOMS).merge(INDEFINIS).freeze
+
+    # Mode contemporain (mode: :contemporain) uniquement :
+    # « alors » se comporte comme une conjonction — frontière AVANT lui, mais
+    # le groupe ne se coupe pas après (« cerveau | alors que rien »).
+    CONTEMP_CONJONCTIONS = %w[alors].to_h { |w| [w, true] }.freeze
+    # Pronoms traités comme « pleins » côté PRÉCÉDENT en contemporain
+    # (« qui | s'écoule », « rien | qui jaillisse », « jamais | lové »).
+    CONTEMP_PRONOMS_PLEINS = %w[qui jamais rien leur leurs].freeze
 
     # Word token: Unicode word chars plus apostrophes (elisions: l'amour) and
     # internal hyphens (porte-parapluie).
@@ -127,24 +141,42 @@ module Scansion
     class << self
       # Analyse accentuelle d'un poème entier (syllabification via
       # Scansion.process_lines, puis groupes rythmiques et accents de mot).
+      # Le régime se règle par `mode` (:auto par défaut — détection sur une
+      # 1re passe, voir Scansion.detect_mode) : :classique = césure et
+      # accents de groupe classiques, aucun tirage 2.6 ; :contemporain =
+      # règles de groupement 3.3 + tirage accentuel 2.6 (Scansion::Rythme)
+      # appliqué à chaque vers.
       # @param lines [Array<String>] les vers
-      # @param dierese [Boolean, Symbol] voir Scansion.process_line
+      # @param mode [Symbol] :auto (défaut), :classique ou :contemporain
       # @return [Array<Scansion::Accents::Analysis>]
-      def analyze_lines(lines, dierese: :auto)
+      def analyze_lines(lines, mode: :auto)
+        cache = {}
         results = begin
-          Scansion.process_lines(lines, dierese: dierese)
+          Scansion.process_lines(lines, mode: mode, cache: cache)
         rescue StandardError
-          lines.map { |l| Scansion.process_line(l, dierese: dierese) }
+          lines.map { |l| Scansion.process_line(l, mode: mode) }
         end
-        results.zip(lines).map { |res, text| analyze_result(res, text) }
+        mode = Scansion.detect_mode(lines, cache: cache) if mode == :auto
+        contemporain = (mode == :contemporain)
+        results.zip(lines).map do |res, text|
+          # règle 2.6 (Scansion::Rythme) : tirage accentuel, mode contemporain
+          res = Scansion::Rythme.accent_pull(text, res, cache: cache) if contemporain
+          analyze_result(res, text, contemporain: contemporain)
+        end
       end
 
-      # Analyse accentuelle d'un seul vers.
+      # Analyse accentuelle d'un seul vers. En mode :contemporain, applique
+      # d'abord le tirage accentuel 2.6 (Scansion::Rythme.accent_pull) ;
+      # jamais en mode :classique. :auto détecte le régime sur le seul vers.
       # @param text [String] le vers
-      # @param dierese [Boolean, Symbol] voir Scansion.process_line
+      # @param mode [Symbol] :auto (défaut), :classique ou :contemporain
       # @return [Scansion::Accents::Analysis]
-      def analyze_line(text, dierese: :auto)
-        analyze_result(Scansion.process_line(text, dierese: dierese), text)
+      def analyze_line(text, mode: :auto)
+        cache = {}
+        mode = Scansion.detect_mode([text], cache: cache) if mode == :auto
+        res = Scansion.process_line(text, mode: mode, cache: cache)
+        res = Scansion::Rythme.accent_pull(text, res, cache: cache) if mode == :contemporain
+        analyze_result(res, text, contemporain: mode == :contemporain)
       end
 
       # Fragments clitiques (l', j', n', c', d', m', t', s') : la « vraie » tête
@@ -180,7 +212,7 @@ module Scansion
         !head.nil? && head.match?(TERMINAISONS_VERBE_FINI)
       end
 
-      def boundary_before?(tokens, i)
+      def boundary_before?(tokens, i, contemporain: false)
         tok = tokens[i]
         return false unless tok.kind == :word
         return false if i.zero?
@@ -197,18 +229,37 @@ module Scansion
 
         return true if pcs.size == 1 && INDEFINIS.key?(head) # aucun, tout, autre… seuls
         return true if CONJONCTIONS.key?(head) || CONJONCTIONS.key?(last)
+        return true if contemporain && CONTEMP_CONJONCTIONS.key?(head) # « alors »
         return true if AUXILIAIRES.key?(last) # n'est, est, a…
+
         # « en » : pronom devant un verbe à l'infinitif ou un nom (« en finir »
         # ne coupe pas), préposition devant un déterminant (« en ta toison »
         # coupe)
         if head == 'en'
+          # mode contemporain : mot plein suivi de « en » -> frontière
+          # (« je prie | en silence »)
+          if contemporain && prev.kind == :word && prev_head &&
+             (!MOTS_FONCTIONNELS.key?(prev_head) || CONTEMP_PRONOMS_PLEINS.include?(prev_head))
+            return true
+          end
+
           return nxt_head && DETERMINANTS.key?(nxt_head) ? true : false
         end
 
         if PREPOSITIONS.key?(head)
-          # « d'ange » (de + nom nu soudé) ou « de ange » : pas de frontière
+          # « d'ange » (de + nom nu soudé) : pas de frontière
           return false if %w[de d].include?(head) && pcs.size > 1
+
+          # « de + nom nu » complément ne coupe pas, même en contemporain :
+          # « l'absence de sens », « le sens de l'écrit », « peau d'ange »
           return false if %w[de d].include?(head) && nxt_head && !DETERMINANTS.key?(nxt_head)
+
+          # mode contemporain : mot plein suivi d'une préposition (autre que
+          # de) -> frontière (« d'or | en ta chair »)
+          if contemporain && prev.kind == :word && prev_head &&
+             (!MOTS_FONCTIONNELS.key?(prev_head) || CONTEMP_PRONOMS_PLEINS.include?(prev_head))
+            return true
+          end
 
           return true
         end
@@ -237,12 +288,32 @@ module Scansion
           return true
         end
 
+        # Mode contemporain : frontière entre deux mots PLEINS (« bile | noire »,
+        # « reflets | dérisoires », « reins | l'épaule », « pères | criaient »).
+        # Les déterminants après un verbe fini restent dans le groupe verbal
+        # (règle ci-dessus : « font un reflet »).
+        if contemporain && prev.kind == :word && prev_head
+          prev_plein = !MOTS_FONCTIONNELS.key?(prev_head) ||
+                       CONTEMP_PRONOMS_PLEINS.include?(prev_head)
+          plein = !MOTS_FONCTIONNELS.key?(head) || head == 'qui' || PRONOMS.key?(head)
+          # la négation « pas » reste dans le groupe verbal (« ne meurt | pas »
+          # -> en fait « ne meurt pas » ne coupe pas)
+          plein &&= head != 'pas'
+          return true if prev_plein && plein
+        end
+
         false
       end
 
-      private
-
-      def analyze_result(res, text)
+      # Analyse accentuelle d'un Result DÉJÀ calculé (ex. par process_line) :
+      # utile aux outils en aval (gem claudel) qui réutilisent une scansion
+      # existante. Public.
+      # @param res [Scansion::Result] résultat de process_line/scan_line
+      # @param text [String] le vers d'origine
+      # @param contemporain [Boolean] applique les règles de groupement du
+      #   vers contemporain (voir boundary_before?)
+      # @return [Scansion::Accents::Analysis]
+      def analyze_result(res, text, contemporain: false)
         warns = []
         warns << 'scansion could not align: res.aligned is false' if res.respond_to?(:aligned) && !res.aligned
 
@@ -259,7 +330,7 @@ module Scansion
         # Scansion.words_of / Result#word_spans
         tokens = tokenize(Scansion.normalize_input(text))
         align_words(res, tokens, syls, warns)
-        groups = merge_function_groups(split_caesura(build_groups(tokens), syls))
+        groups = merge_function_groups(split_caesura(build_groups(tokens, contemporain: contemporain), syls))
         groups.each { |g| g.accent = place_accent(g, syls) }
         wacc = word_accents(tokens, syls, caesura_index(syls.size))
 
@@ -268,6 +339,8 @@ module Scansion
         analysis.warnings.concat(validate(analysis))
         analysis
       end
+
+      private
 
       # ---- tokenization -------------------------------------------------------
 
@@ -425,7 +498,7 @@ module Scansion
       # « de + nom nu »), ou un déterminant ouvrant un nouveau syntagme ; et
       # après chaque signe de ponctuation. L'accent ira sur la dernière syllabe
       # portant un noyau du groupe.
-      def build_groups(tokens)
+      def build_groups(tokens, contemporain: false)
         groups = []
         current = []
         tokens.each_with_index do |tok, i|
@@ -435,7 +508,7 @@ module Scansion
               current = []
             end
           else
-            if !current.empty? && boundary_before?(tokens, i)
+            if !current.empty? && boundary_before?(tokens, i, contemporain: contemporain)
               groups << Group.new(current, nil)
               current = []
             end
@@ -464,6 +537,10 @@ module Scansion
 
       def all_function?(group)
         group.tokens.all? do |t|
+          # « d'or » (de + nom) n'est PAS fonctionnel : « or » est ici le nom,
+          # pas la conjonction — sinon le groupe « d'or » collerait au suivant
+          next false if t.kind == :word && t.surface.match?(/\Ad['’]/i)
+
           t.kind == :punct || pieces(t).all? { |p| MOTS_FONCTIONNELS.key?(p.downcase) }
         end
       end
