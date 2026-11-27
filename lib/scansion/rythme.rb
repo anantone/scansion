@@ -16,9 +16,10 @@
 #     tire le vers. Appliqué dans Scansion::Accents.analyze_line(s) en mode
 #     contemporain.
 #
-# L'évaluation SUBJECTIVE de ces caractéristiques (pondération de critères
-# de jugement -> score global du vers) n'est pas du ressort de scansion :
-# elle vivra dans le gem claudel, au-dessus de ce module.
+# La QUANTIFICATION de ces caractéristiques (modéliser des aspects du poème
+# à partir de ces outils analytiques) n'est pas du ressort de scansion : elle
+# vit dans le gem claudel, au-dessus de ce module. L'interprétation de lecture
+# (règles dures ou personnelles) reste côté scansion.
 #
 #   require "scansion/rythme"
 
@@ -35,9 +36,21 @@ module Scansion
     # passé jouit » -> 8, pas 10).
     MAX_PULL_SYLLABES = 1
 
+    # EXPÉRIMENTAL (tirage 2.6, vers contemporain) : le tirage peut combiner
+    # plusieurs e caducs et une diérèse, notés avec les groupes contemporains.
+    # Voir score_of(res, line, contemporain: true).
+    PULL_CONTEMPORAIN = false
+
     # Mots sur lesquels le tirage ne restaure jamais de diérèse (« des dieux »
     # -> de-djø, pas de-di-jø).
     SANS_DIERESE = %w[dieu dieux].freeze
+
+    # Marqueurs d'oralité (registre parlé) : après eux, un mot à e caduc
+    # optionnel perd son e (« c'est une promesse » -> sɛt-yn, pas sɛt-yn-ə),
+    # même sous la pression du tirage vers le mètre. N figurent ici que les
+    # marqueurs attestés dans les samples : « c'est » (45 occ.), « ya »
+    # (2015-6-6-philosophie.txt), « t'es » (id.).
+    MARQUEURS_ORALITE = /(?:c['’]est|ya|t['’]es)\s+/i
 
     # Signature d'un vers = tailles des groupes rythmiques en syllabes
     # (ex. [6, 3, 3]).
@@ -65,46 +78,85 @@ module Scansion
     # @param line [String] le vers d'origine
     # @param plain_res [Scansion::Result] scansion plain (mode :contemporain)
     # @param cache [Hash, nil] cache partagé optionnel (voir Scansion.scan_line)
+    # @param target [Integer, nil] nombre de syllabes cible (mètre dominant du
+    #   poème, transmis par analyze_lines) : variantes qui atteignent la cible
     # @return [Scansion::Result] le Result retenu
-    def accent_pull(line, plain_res, cache: nil)
+    def accent_pull(line, plain_res, cache: nil, target: nil)
       return plain_res unless plain_res.aligned
 
-      variants = [['plain', plain_res, score_of(plain_res, line)]]
-      e = Scansion.scan_line(line, dierese: false, count_mute_e: true, cache: cache)
-      if e.aligned && e.syllables > plain_res.syllables &&
-         e.syllables - plain_res.syllables <= MAX_PULL_SYLLABES
-        variants << ['+e', e, score_of(e, line)]
-      end
-      unless Scansion.words_of(line).intersect?(SANS_DIERESE)
-        d = Scansion.scan_line(line, dierese: true, cache: cache)
-        if d.aligned && d.syllables > plain_res.syllables &&
-           d.syllables - plain_res.syllables <= MAX_PULL_SYLLABES
-          variants << ['+diérèse', d, score_of(d, line)]
-        end
-      end
-      # variantes MOT À MOT : ne compter l'e caduc que d'un seul mot candidat
-      mute_e_candidates(line).each do |w|
-        v = Scansion.scan_line(line, dierese: false, mute_e_words: [w], cache: cache)
-        next unless v.aligned && v.syllables == plain_res.syllables + 1
+      # tirage vers la cible (mètre dominant du poème) : prioritaire
+      return pull_vers_cible(line, plain_res, target, cache: cache) if target && target > plain_res.syllables
 
-        variants << ["+e:#{w}", v, score_of(v, line)]
-      end
+      # PULL_CONTEMPORAIN (expérimental) : variantes notées avec les groupes
+      # contemporains, tirage multi-e et combiné +e/diérèse autorisés
+      contemp = PULL_CONTEMPORAIN
+      max = contemp ? [MAX_PULL_SYLLABES, 3].max : MAX_PULL_SYLLABES
+      best = plain_res
+      best_score = score_of(plain_res, line, contemporain: contemp)
+      variantes(line, cache, combinee: contemp).each do |label, v|
+        next unless v.aligned
 
-      best = variants.max_by { |_, _, s| s }
-      best[1][0] == 'plain' || best[2] <= variants[0][2] ? plain_res : best[1]
+        extra = v.syllables - plain_res.syllables
+        # mot à mot : exactement une syllabe de plus ; global : 1..max
+        next unless label.start_with?('+e:') ? extra == 1 : extra.between?(1, max)
+
+        s = score_of(v, line, contemporain: contemp)
+        next unless s > best_score # strictement meilleur que le plain
+
+        best = v
+        best_score = s
+      end
+      best
+    end
+
+    # Tirage vers un nombre de syllabes cible (mètre dominant du poème) :
+    # on essaie les variantes « +e global », « +diérèse », combinée, et mot à
+    # mot, mais seules celles qui ATTEIGNENT la cible sont retenues.
+    def pull_vers_cible(line, plain_res, target, cache: nil)
+      candidats = variantes(line, cache).map(&:last).select { |v| v.aligned && v.syllables == target }
+      # atteindre la cible (mètre dominant du poème) est en soi la
+      # justification rythmique : parmi les variantes qui l'atteignent,
+      # on prend la mieux notée, même si son score de groupes est inférieur
+      # au plain (ex. « une caresse qui produit » -> 8, pas 6 en 3-3)
+      candidats.max_by { |v| score_of(v, line, contemporain: true) } || plain_res
+    end
+
+    # Variantes de tirage d'un vers, dans l'ordre : globales (« +e »,
+    # « +diérèse », puis combinée si +combinee+), puis « +e » mot à mot sur
+    # chaque candidat. Pas de diérèse sur SANS_DIERESE (« des dieux »).
+    # @return [Array<(String, Scansion::Result)>] paires [étiquette, Result]
+    def variantes(line, cache, combinee: true)
+      sans_dierese = Scansion.words_of(line).intersect?(SANS_DIERESE)
+      globales = [[false, true], [true, false], [true, true]]
+      globales = globales.first(2) unless combinee
+      out = globales.filter_map do |dier, ce|
+        next if dier && sans_dierese
+
+        ["#{'+diérèse' if dier}#{'+e' if ce}",
+         Scansion.scan_line(line, dierese: dier, count_mute_e: ce, cache: cache)]
+      end
+      out + mute_e_candidates(line).map do |w|
+        ["+e:#{w}", Scansion.scan_line(line, dierese: false, mute_e_words: [w], cache: cache)]
+      end
     end
 
     # Score rythmique d'un Result : signature des groupes de son analyse
-    # accentuelle (Scansion::Accents.analyze_result).
-    def score_of(res, line)
-      score(signature(Scansion::Accents.analyze_result(res, line)))
+    # accentuelle (Scansion::Accents.analyze_result). `contemporain: true`
+    # note les groupes avec les règles du vers contemporain (expérimental,
+    # voir PULL_CONTEMPORAIN).
+    def score_of(res, line, contemporain: false)
+      score(signature(Scansion::Accents.analyze_result(res, line, contemporain: contemporain)))
     end
 
     # Mots candidats à un « +e » ciblé : terminaison en -e/-es/-x avec un
-    # schwa non fixe (pas les monosyllabes grammaticaux le/de/me…).
+    # schwa non fixe (pas les monosyllabes grammaticaux le/de/me…) — et pas
+    # de « +e » après un marqueur d'oralité (« c'est une » -> sɛt-yn).
     def mute_e_candidates(line)
-      Scansion.words_of(Scansion.normalize_input(line)).select do |w|
-        w.match?(/e[sx]?\z/i) && !Scansion::SCHWA_STABLE.include?(w)
+      norm = Scansion.normalize_input(line)
+      Scansion.words_of(norm).select do |w|
+        next false unless w.match?(/e[sx]?\z/i) && !Scansion::SCHWA_STABLE.include?(w)
+
+        !norm.match?(/#{MARQUEURS_ORALITE.source}#{Regexp.escape(w.downcase)}\b/i)
       end
     end
   end

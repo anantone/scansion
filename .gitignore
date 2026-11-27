@@ -1,7 +1,8 @@
-.rspec
 .DS_Store
 *.swp
 *.gem
 doc/
 .yardoc/
 html/
+dev/
+spec/golden/

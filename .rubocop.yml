@@ -1,6 +1,10 @@
 AllCops:
   TargetRubyVersion: 3.1
   NewCops: disable
+  SuggestExtensions: false
+  Exclude:
+    - 'dev/**/*'          # outils de développement (diff de rapports, génération de golden)
+    - 'spec/golden/**/*'  # golden specs générées par dev/gen_golden.rb
 
 Style/StringLiterals:
   EnforcedStyle: single_quotes

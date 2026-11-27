@@ -18,9 +18,10 @@
 #   version.rb           Scansion::VERSION
 #
 # `require "scansion"` charge tout ceci sans effet de bord. Voir
-# docs/scansion_rules.txt pour la liste complète des règles. L'évaluation
-# subjective de ces caractéristiques (score global du vers) vit dans le gem
-# claudel, au-dessus de celui-ci.
+# docs/scansion_rules.txt pour la liste complète des règles. La QUANTIFICATION
+# de ces caractéristiques (modéliser des aspects du poème à partir des outils
+# analytiques de scansion) vit dans le gem claudel, au-dessus de celui-ci ;
+# toute interprétation de lecture (règle dure ou personnelle) reste côté scansion.
 
 require_relative 'scansion/version'
 require_relative 'scansion/syllabification'

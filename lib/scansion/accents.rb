@@ -95,13 +95,43 @@ module Scansion
     # (« qui | s'écoule », « rien | qui jaillisse », « jamais | lové »).
     CONTEMP_PRONOMS_PLEINS = %w[qui jamais rien leur leurs].freeze
 
+    # Participes passés / adjectifs verbaux (terminaisons) — « la date choisie »,
+    # « pris ».
+    PARTICIPES = /(?:é|ée|és|ées|i|ie|is|ies|u|ue|us|ues|it|ît)s?\z/
+    # Infinitif (heuristique orthographique) — « laissée frotter ».
+    # -er/-ir seulement : -re entre en collision avec prêtre, frère, mère…
+    INFINITIF = /\A[[:alpha:]-]+(?:er|ir)\z/
+    # Locutions soudées en un seul groupe accentuel (mode contemporain) :
+    # « nulle part », « peu partout », « en tout ».
+    LOCUTIONS_SANS_FRONTIERE = [%w[nulle part], %w[peu partout], %w[en tout]].freeze
+
+    # Fragments clitiques (l', j', n', c', d', m', t', s') : la « vraie » tête
+    # du mot est la première partie qui n'est pas un fragment — « c'est » ->
+    # est (auxiliaire, fonctionnel), « l'ombre » -> ombre (nom, PAS le
+    # déterminant « l »), « n'est » -> est.
+    FRAGMENTS_CLITIQUES = %w[c d j l m n s t].freeze
+
+    # Fin de verbe fini (heuristique sans POS) : -ont, -ez, -ons, -ais, -ait,
+    # -ai/-as/-a, -is/-it/-ît. Un déterminant après un verbe fini reste
+    # dans le groupe verbal (« font un reflet », « fondra la mer ») ; après
+    # un participe ou un nom, il ouvre un nouveau syntagme (« ciselant | le
+    # cristal », « l'ombre | les escrocs »).
+    TERMINAISONS_VERBE_FINI = /(?:ont|ez|ons|ais|aient|ait|ai|as|a|is|it|ît)\z/
+
+    # Indice 0-based de la syllabe de césure selon la longueur du vers :
+    # 6//6 pour l'alexandrin, 4//4 pour l'octosyllabe.
+    CESURES = { 12 => 5, 8 => 3 }.freeze
+
     # Word token: Unicode word chars plus apostrophes (elisions: l'amour) and
     # internal hyphens (porte-parapluie).
     REGEXP_MOTS = /[\p{Word}'’-]+|[,;:.!?…—–«»"]/
 
     # keyword_init structs take keyword arguments only.
     Token = Struct.new(:surface, :kind, :debut, :fin, keyword_init: true) # kind: :word | :punct
-    Group = Struct.new(:tokens, :accent)
+    # hard = true : la frontière après ce groupe vient d'une ponctuation
+    # (mode contemporain : la ponctuation est une frontière dure, on ne
+    # recolle pas un groupe fonctionnel au suivant — « Après tout, | l'autre »)
+    Group = Struct.new(:tokens, :accent, :hard)
 
     # Résultat de l'analyse accentuelle d'un vers (voir
     # Scansion::Accents.analyze_line / .analyze_lines) :
@@ -151,16 +181,24 @@ module Scansion
       # @return [Array<Scansion::Accents::Analysis>]
       def analyze_lines(lines, mode: :auto)
         cache = {}
-        results = begin
-          Scansion.process_lines(lines, mode: mode, cache: cache)
-        rescue StandardError
-          lines.map { |l| Scansion.process_line(l, mode: mode) }
-        end
+        # régime résolu UNE fois, puis transmis : syllabification et accents
+        # travaillent ainsi sous le même régime
         mode = Scansion.detect_mode(lines, cache: cache) if mode == :auto
+        results = Scansion.process_lines(lines, mode: mode, cache: cache)
         contemporain = (mode == :contemporain)
+        # cible du tirage 2.6 : mètre dominant du poème (vers contemporain) —
+        # ex. un poème en octosyllabes tire les vers courts vers 8
+        cible = nil
+        counts = results.map(&:syllables).select(&:positive?)
+        if contemporain && counts.size >= 3
+          top, n = counts.tally.max_by { |_, c| c }
+          # seuls les mètres pairs classiques (6, 8, 10, 12) servent de cible :
+          # un vers libre tiré vers un compte impair dominant serait suspect
+          cible = top if n >= 2 && n * 2 >= counts.size && (6..12).cover?(top) && top.even?
+        end
         results.zip(lines).map do |res, text|
           # règle 2.6 (Scansion::Rythme) : tirage accentuel, mode contemporain
-          res = Scansion::Rythme.accent_pull(text, res, cache: cache) if contemporain
+          res = Scansion::Rythme.accent_pull(text, res, cache: cache, target: cible) if contemporain
           analyze_result(res, text, contemporain: contemporain)
         end
       end
@@ -179,12 +217,6 @@ module Scansion
         analyze_result(res, text, contemporain: mode == :contemporain)
       end
 
-      # Fragments clitiques (l', j', n', c', d', m', t', s') : la « vraie » tête
-      # du mot est la première partie qui n'est pas un fragment — « c'est » ->
-      # est (auxiliaire, fonctionnel), « l'ombre » -> ombre (nom, PAS le
-      # déterminant « l »), « n'est » -> est.
-      FRAGMENTS_CLITIQUES = %w[c d j l m n s t].freeze
-
       # tête du mot : première partie non clitique (« c'est » -> « est »,
       # « l'ombre » -> « ombre ») ; un mot est fonctionnel si TOUTES ses
       # parties le sont (« n'est » -> n + est)
@@ -201,13 +233,7 @@ module Scansion
       #  - préposition, sauf « de/d' + nom nu » (complément : « peau d'ange ») -> oui
       #  - déterminant qui OUVRE un nouveau syntagme, sauf si le mot
       #    précédent est fonctionnel ou une préposition (PP : « à partir du col »)
-      # fin de verbe fini (heuristique sans POS) : -ont, -ez, -ons, -ais, -ait,
-      # -ai/-as/-a, -is/-it/-ît, -e. Un déterminant après un verbe fini reste
-      # dans le groupe verbal (« font un reflet », « fondra la mer ») ; après
-      # un participe ou un nom, il ouvre un nouveau syntagme (« ciselant | le
-      # cristal », « l'ombre | les escrocs »).
-      TERMINAISONS_VERBE_FINI = /(?:ont|ez|ons|ais|aient|ait|ai|as|a|is|it|ît)\z/
-
+      # (voir TERMINAISONS_VERBE_FINI pour l'heuristique de verbe fini)
       def finite_verb_head?(head)
         !head.nil? && head.match?(TERMINAISONS_VERBE_FINI)
       end
@@ -227,7 +253,10 @@ module Scansion
         prev2 = i >= 2 ? tokens[i - 2] : nil # pas d'index négatif !
         prev2_head = prev2 ? head_of(prev2) : nil
 
-        return true if pcs.size == 1 && INDEFINIS.key?(head) # aucun, tout, autre… seuls
+        # aucun, tout, autre… seuls ouvrent un groupe — sauf locution soudée
+        # (« donc en tout » ne coupe pas avant « tout »)
+        return true if pcs.size == 1 && INDEFINIS.key?(head) &&
+                       !LOCUTIONS_SANS_FRONTIERE.include?([prev_head.to_s, head])
         return true if CONJONCTIONS.key?(head) || CONJONCTIONS.key?(last)
         return true if contemporain && CONTEMP_CONJONCTIONS.key?(head) # « alors »
         return true if AUXILIAIRES.key?(last) # n'est, est, a…
@@ -247,29 +276,50 @@ module Scansion
         end
 
         if PREPOSITIONS.key?(head)
-          # « d'ange » (de + nom nu soudé) : pas de frontière
-          return false if %w[de d].include?(head) && pcs.size > 1
+          # « d'ange » (de + nom nu soudé) : pas de frontière — mais « d'honorer »
+          # (de + infinitif soudé) coupe en contemporain (« convenu | d'honorer »)
+          return false if %w[de d].include?(head) && pcs.size > 1 &&
+                          !(contemporain && pcs.last.to_s.downcase.match?(INFINITIF))
 
           # « de + nom nu » complément ne coupe pas, même en contemporain :
-          # « l'absence de sens », « le sens de l'écrit », « peau d'ange »
+          # « l'absence de sens », « nue de chair », « peur de mourir »
           return false if %w[de d].include?(head) && nxt_head && !DETERMINANTS.key?(nxt_head)
 
           # mode contemporain : mot plein suivi d'une préposition (autre que
-          # de) -> frontière (« d'or | en ta chair »)
+          # de) -> frontière (« d'or | en ta chair ») — sauf si le mot plein est
+          # lui-même précédé d'une préposition (« tout de même, par honnêteté »
+          # ne coupe pas avant « par »)
           if contemporain && prev.kind == :word && prev_head &&
-             (!MOTS_FONCTIONNELS.key?(prev_head) || CONTEMP_PRONOMS_PLEINS.include?(prev_head))
+             (!MOTS_FONCTIONNELS.key?(prev_head) || CONTEMP_PRONOMS_PLEINS.include?(prev_head)) &&
+             !(prev2_head && PREPOSITIONS.key?(prev2_head.to_s))
             return true
           end
 
           return true
         end
+        # « d' + mot » soudé (pièces > 1 commençant par de/d) : coupe en
+        # contemporain (« peau | d'ange », « enrubannés | d'espoir »,
+        # « convenu | d'honorer ») ; collé en classique
+        if pcs.size > 1 && %w[de d].include?(pcs.first.to_s.downcase)
+          return contemporain ? true : false
+        end
+
         if DETERMINANTS.key?(head)
           # le déterminant appartient au syntagme précédent (« que le fond »,
-          # « sans l'accuser ») si le mot d'avant est fonctionnel
-          return false if prev_head && MOTS_FONCTIONNELS.key?(prev_head)
+          # « sans l'accuser ») si le mot d'avant est fonctionnel — SAUF après
+          # « tout » pronominal (« Après tout, | l'autre langage » : tout après
+          # une préposition est un pronom, pas un déterminant)
+          if prev_head && MOTS_FONCTIONNELS.key?(prev_head) &&
+             !(prev_head == 'tout' && prev2_head && PREPOSITIONS.key?(prev2_head.to_s))
+            return false
+          end
           # après un verbe fini, le COD reste dans le groupe verbal
-          # (« font un reflet », « fondra la mer »)
-          return false if prev.kind == :word && finite_verb_head?(prev_head)
+          # (« font un reflet », « fondra la mer », « ne naît la nuit »)
+          # — sauf après « pas » : « pas appris | l'histoire » (participe)
+          if prev.kind == :word && finite_verb_head?(prev_head) &&
+             prev2_head.to_s != 'pas'
+            return false
+          end
           # « du/des » (génitif) collé à une PP (« à partir du col ») : pas de
           # frontière ; un article plein (« les escrocs » après « l’ombre ») ouvre
           # bien un nouveau syntagme
@@ -284,7 +334,7 @@ module Scansion
         if prev_head && prev.kind == :word && !MOTS_FONCTIONNELS.key?(prev_head) &&
            !finite_verb_head?(prev_head) &&
            tok.surface[0] == tok.surface[0].downcase &&
-           head.match?(/(?:é|ée|és|ées|i|ie|is|ies|u|ue|us|ues|it|ît)s?\z/)
+           head.match?(PARTICIPES)
           return true
         end
 
@@ -299,6 +349,25 @@ module Scansion
           # la négation « pas » reste dans le groupe verbal (« ne meurt | pas »
           # -> en fait « ne meurt pas » ne coupe pas)
           plein &&= head != 'pas'
+          # locutions soudées : « nulle part », « peu partout » -> un seul groupe
+          return false if LOCUTIONS_SANS_FRONTIERE.include?([prev_head.to_s, head])
+
+          # pronom réfléchi (se/me/te) collé à un pronom sujet (« lorsqu'il se
+          # tait » : dernière partie de « lorsqu'il » = il) ; après un nom, il
+          # ouvre un groupe (« l'autre langage | te ressemble »)
+          prev_pronom = prev_head && (PRONOMS.key?(prev_head) ||
+                                      CONTEMP_PRONOMS_PLEINS.include?(prev_head.to_s) ||
+                                      (pieces(prev).size > 1 && PRONOMS.key?(pieces(prev).last.to_s.downcase)))
+          return false if %w[se me te].include?(head) && prev.kind == :word && prev_pronom
+          # verbe fini après un pronom sujet ou une conjonction : « je | vais »,
+          # « et | croit » (mais « nous | battre » : infinitif ; « se | tait » :
+          # réfléchi ; « ne | naît », « s'en | va » : négation/pronom collés)
+          if finite_verb_head?(head) && prev_pronom && !%w[se me te ne en y].include?(prev_head.to_s) ||
+             finite_verb_head?(head) && CONJONCTIONS.key?(prev_head.to_s)
+            return true
+          end
+          # deux mots pleins se séparent (« livre | comme », « lois | anciennes »,
+          # « fais | tourner », « lait | clair »)
           return true if prev_plein && plein
         end
 
@@ -448,17 +517,9 @@ module Scansion
 
       # ---- grouping ------------------------------------------------------------
 
-      # Accent INTERNE de chaque mot plein : sa dernière syllabe à noyau
-      # accentué (on remonte au-dessus d'un éventuel schwa final — « muette »
-      # mu-ɛ-tə porte donc son accent sur le « ɛ »). Les mots fonctionnels
-      # n'ont pas d'accent propre.
-      # index de la césure (0-based) : 6//6 pour 12, 4//4 pour 8
+      # indice 0-based de la syllabe de césure (voir CESURES), nil sinon
       def caesura_index(n)
-        if n == 12
-          5
-        else
-          (n == 8 ? 3 : nil)
-        end
+        CESURES[n]
       end
 
       # Indices des syllabes portant un accent de mot (ˌ) : dernière syllabe
@@ -492,6 +553,9 @@ module Scansion
         end
         acc.uniq
       end
+      # point d'entrée documenté (voir l'en-tête du module) : public, bien que
+      # défini parmi les méthodes privées
+      public :word_accents
 
       # Un groupe rythmique (syntagme) se termine à la frontière suivante :
       # avant une conjonction, un auxiliaire, une préposition (sauf complément
@@ -504,7 +568,7 @@ module Scansion
         tokens.each_with_index do |tok, i|
           if tok.kind == :punct
             unless current.empty?
-              groups << Group.new(current, nil)
+              groups << Group.new(current, nil, contemporain ? true : nil)
               current = []
             end
           else
@@ -525,8 +589,11 @@ module Scansion
         out = groups.dup
         i = 0
         while i < out.size - 1
-          if all_function?(out[i])
-            out[i + 1] = Group.new(out[i].tokens + out[i + 1].tokens, nil)
+          # un groupe fonctionnel fermé par une ponctuation (hard) n'est
+          # recollé au suivant que s'il est d'un seul mot (« mais, de toute
+          # évidence ») — « Après tout, | l'autre » reste coupé
+          if all_function?(out[i]) && !(out[i].hard && out[i].tokens.size > 1)
+            out[i + 1] = Group.new(out[i].tokens + out[i + 1].tokens, nil, out[i + 1].hard)
             out.delete_at(i)
           else
             i += 1
@@ -549,12 +616,7 @@ module Scansion
       # when no punctuation already marks it: the boundary falls on the last
       # accent-bearing syllable at or before the caesura index (0-based).
       def split_caesura(groups, syls)
-        n = syls.size
-        c = if n == 12
-              5
-            else
-              (n == 8 ? 3 : nil)
-            end
+        c = caesura_index(syls.size)
         return groups if c.nil?
 
         s = c
@@ -567,8 +629,8 @@ module Scansion
           cover = g.tokens.index { |t| t.debut && t.fin && t.debut <= s && t.fin >= s }
           cover = nil if cover == g.tokens.size - 1 && g.tokens.last.fin == s
           if cover && cover < g.tokens.size - 1
-            out << Group.new(g.tokens[0..cover], nil)
-            out << Group.new(g.tokens[(cover + 1)..], nil)
+            out << Group.new(g.tokens[0..cover], nil, nil)
+            out << Group.new(g.tokens[(cover + 1)..], nil, g.hard)
           else
             out << g
           end
@@ -625,7 +687,8 @@ module Scansion
       def validate(a)
         w = []
         n = a.syllables.size
-        return w unless [8, 12].include?(n)
+        c = caesura_index(n)
+        return w if c.nil?
 
         last = a.groups.last
         if last.nil? || last.accent != n - 1
@@ -634,7 +697,6 @@ module Scansion
           w << "verse #{n}: rhyme syllable has no accent-bearing nucleus — suspicious elision at line end"
         end
 
-        c = n == 12 ? 5 : 3 # index 0-based de la cesure
         unless a.groups.any? { |g| g.tokens.last&.fin && g.tokens.last.fin <= c }
           w << "verse #{n}: no group boundary at the caesura (syllable #{c + 1})"
         end

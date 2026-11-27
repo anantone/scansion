@@ -114,10 +114,11 @@ Scansion::Accents.analyze_lines(File.readlines("corpus.txt", chomp: true)) # :au
 Le gem produit aussi les **caractéristiques rythmiques** du vers
 (`Scansion::Rythme` : signature de groupes, score de régularité) et applique
 le **tirage accentuel 2.6** en vers contemporain — la régularité rythmique y
-est une caractéristique mesurable, pas un jugement. L'évaluation
-**subjective** de ces caractéristiques (critères pondérés -> score global du
-vers) vit dans le gem [**claudel**](https://rubygems.org/gems/claudel),
-construit au-dessus de scansion.
+est une caractéristique mesurable, pas un jugement. La **quantification**
+de ces caractéristiques — modéliser des aspects du poème à partir des outils
+analytiques de scansion — vit dans le gem [**claudel**](https://rubygems.org/gems/claudel),
+construit au-dessus de scansion. L'interprétation de lecture (règle dure ou
+personnelle) reste côté scansion.
 
 
 Développement
@@ -129,6 +130,22 @@ bundle exec rspec     # ou : rake
 ```
 
 La couche espeak-ng (`Scansion.espeak`) est bouchonnée dans les specs : la suite est déterministe et tourne sans espeak-ng.
+
+### Affinage guidé par les lectures corrigées (golden)
+
+```bash
+# 1. générer le rapport auto et le garder tel quel
+ruby -I lib ../gen_accent_report.rb contemporain /tmp/auto.txt samples/*.txt   # (depuis ruby/)
+# 2. corriger à la main une copie (marqueurs == ou | pour une frontière de groupe ajoutée ;
+#    les accents ˈ/ˌ DÉRIVENT des groupes : ne pas les corriger à la main, l'outil les
+#    recalcule — le diff et les golden ignorent les différences de ˈ/ˌ seules)
+# 3. diff auto vs manuel, groupé par catégorie (compte / frontières / phones)
+ruby -I lib dev/diff_report.rb /tmp/auto.txt /tmp/manuel.txt
+# 4. générer les golden specs des poèmes corrigés (espeak bouchonné, déterministe)
+ruby -I lib dev/gen_golden.rb /tmp/auto.txt /tmp/manuel.txt :contemporain
+# 5. la file d'attente d'affinage : les golden rouges
+rspec --tag golden          # la suite normale les exclut (--tag ~golden dans .rspec)
+```
 
 
 Structure

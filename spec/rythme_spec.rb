@@ -84,3 +84,22 @@ RSpec.describe Scansion::Rythme do
     end
   end
 end
+
+RSpec.describe Scansion::Rythme, 'tirage vers le mètre dominant (cible de analyze_lines)' do
+  it '« c’est une promesse de clarté » tire vers 8 : e de « promesse » compté, pas celui de « une » (oralité)' do
+    lines = ['pisser, sur soi ou sur autrui', "c'est une promesse de clarté",
+             'une caresse qui produit', 'son propre effacement lacté']
+    a = Scansion::Accents.analyze_lines(lines, mode: :contemporain)[1]
+    expect(a.syllables.size).to eq(8)
+    expect(a.render).to include('sɛt-yn-pʁo-ˈmɛ-sə')
+    expect(a.render).not_to include('yn-ə-pʁo')
+  end
+
+  it '« une caresse qui produit » tire vers 8 en comptant le e de « une » (pas de marqueur d’oralité)' do
+    lines = ['pisser, sur soi ou sur autrui', "c'est une promesse de clarté",
+             'une caresse qui produit', 'son propre effacement lacté']
+    a = Scansion::Accents.analyze_lines(lines, mode: :contemporain)[2]
+    expect(a.syllables.size).to eq(8)
+    expect(a.render).to include('nə-ka-ˈʁɛ-sə')
+  end
+end

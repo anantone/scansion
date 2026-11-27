@@ -1136,6 +1136,10 @@ module Scansion
         # count_syllables) : il ne déclenche aucune coupure de syllabe
         # glide seul (segment d"une seule lettre) suivi d"une voyelle : pas un noyau
         # (un segment comme « yi » a son noyau dans la voyelle qui suit le glide)
+        # NOTE (proposition ouverte, golden preliminaires) : hiatus inter-mot
+        # « tu étais » -> le y final de « tu » devrait être un noyau (ty-e) ;
+        # count_syllables le compte déjà (word_starts), mark_syllables non —
+        # à corriger sans déplacer la coupure de « étendue où » (tɑ̃dy-u).
         next if ph.length == 1 && %w[y ɥ].include?(ph[0]) &&
                 phones[k + 1] && phones[k + 1][0].match?(PHONEME_VOYELLE)
 
@@ -1292,18 +1296,19 @@ module Scansion
     # un hiatus et le y est le noyau /y/ compté (étendue où -> ...-dy-u = 2)
     def count_syllables(phones, barriers = [])
       word_starts = barriers.map { |b| b[0] }
-      count = 0
-      phones.each_with_index do |ph, k|
-        next unless ph[0].match?(PHONEME_VOYELLE)
-        if %w[y ɥ].include?(ph[0]) && phones[k + 1] &&
-           phones[k + 1][0].match?(PHONEME_VOYELLE) &&
-           !word_starts.include?(k + 1)
-          next
-        end
+      phones.each_index.count { |k| syllable_nucleus?(phones, k, word_starts) }
+    end
 
-        count += 1
-      end
-      count
+    # Le phone phones[k] est-il un noyau de syllabe ? Règle unique partagée
+    # par count_syllables et le calcul des word_spans (voir count_syllables) :
+    # une voyelle, sauf un glide y/ɥ suivi d'une voyelle du MÊME mot.
+    def syllable_nucleus?(phones, idx, word_starts)
+      ph = phones[idx]
+      return false unless ph[0].match?(PHONEME_VOYELLE)
+
+      nxt = phones[idx + 1]
+      !(%w[y ɥ].include?(ph[0]) && nxt && nxt[0].match?(PHONEME_VOYELLE) &&
+        !word_starts.include?(idx + 1))
     end
 
     # Mètre dominant du contexte (vers voisins) — voir Scansion::Classique
@@ -1321,16 +1326,34 @@ module Scansion
     # @param cache [Hash, nil] cache partagé optionnel
     # @return [Symbol] :classique ou :contemporain
     def detect_mode(lines, cache: nil)
-      cache ||= {}
-      results = lines.map do |l|
+      detect_mode_from(first_pass(lines, cache || {}))
+    end
+
+    # 1re passe (e muet compté, sans diérèse) : un Result aligné par ligne,
+    # nil pour les lignes vides ou non alignées. Partagée par detect_mode et
+    # process_lines pour que les deux détectent le régime de la même façon.
+    def first_pass(lines, cache)
+      lines.map do |l|
         next nil if l.strip.empty?
 
         r = scan_line(l, dierese: false, cache: cache, count_mute_e: true)
         r.aligned ? r : nil
       end
+    end
+
+    # Régime d'après une 1re passe (longueurs ET rimes de fin de vers).
+    def detect_mode_from(results)
       counts = results.map { |r| r&.syllables }
       keys = results.map { |r| r && Classique.rhyme_key(r) }
       Classique.detect_mode(counts, keys: keys)
+    end
+
+    # Lève ArgumentError si +mode+ n'est pas un régime résolu.
+    def validate_mode!(mode)
+      return if %i[classique contemporain].include?(mode)
+
+      raise ArgumentError,
+            "mode inconnu : #{mode.inspect} (attendu : :auto, :classique, :contemporain)"
     end
 
     # Mots candidats à un « +1 » en mode classique — voir Scansion::Classique.
@@ -1364,10 +1387,7 @@ module Scansion
         r0 = scan_line(line, dierese: false, cache: cache, count_mute_e: true)
         mode = Classique.detect_mode([r0.aligned ? r0.syllables : nil])
       end
-      unless %i[classique contemporain].include?(mode)
-        raise ArgumentError,
-              "mode inconnu : #{mode.inspect} (attendu : :auto, :classique, :contemporain)"
-      end
+      validate_mode!(mode)
 
       classique = (mode == :classique)
       # la 1re passe garde le comptage classique de l'e muet devant consonne
@@ -1399,17 +1419,12 @@ module Scansion
     # @return [Array<Scansion::Result>] un résultat par ligne (dans l'ordre)
     def process_lines(lines, mode: :auto, cache: nil)
       cache ||= {}
-      counts = lines.map do |l|
-        next nil if l.strip.empty?
-
-        r = scan_line(l, dierese: false, cache: cache, count_mute_e: true)
-        r.aligned ? r.syllables : nil
-      end
-      mode = Classique.detect_mode(counts) if mode == :auto
-      unless %i[classique contemporain].include?(mode)
-        raise ArgumentError,
-              "mode inconnu : #{mode.inspect} (attendu : :auto, :classique, :contemporain)"
-      end
+      first = first_pass(lines, cache)
+      counts = first.map { |r| r&.syllables }
+      # même détection que Scansion.detect_mode (longueurs + rimes), pour que
+      # la couche accents, qui la rappelle, voie le même régime
+      mode = detect_mode_from(first) if mode == :auto
+      validate_mode!(mode)
       lines.each_with_index.map do |l, i|
         r = process_line(l, mode: mode, cache: cache)
         # règle 2.5 (Scansion::Classique) : mode contemporain seulement —
@@ -1440,7 +1455,7 @@ module Scansion
       end
       compute_scan_line(line, dierese: dierese, dierese_words: dierese_words,
                               cluster_words: cluster_words, ent_words: ent_words, pause_e: pause_e,
-                              count_mute_e: count_mute_e)
+                              count_mute_e: count_mute_e, mute_e_words: mute_e_words)
     end
 
     def compute_scan_line(line, dierese: false, dierese_words: nil, cluster_words: nil,
@@ -1495,11 +1510,16 @@ module Scansion
         next_word = (words_out[k + 1] || {})[:word]
         # un e final PRONONCÉ (EXCEPTIONS_E_PRONONCE, ou -Cre en contexte classique)
         # reste compté même devant une pause : « ivre, complice » -> i-vʁə (2)
+        # Deux drapeaux VOLONTAIREMENT différents : `on` (= Aligner#cluster_on?)
+        # inclut count_mute_e, `on_pause` non. Un -Cre devant une pause n'est
+        # protégé qu'avec la diérèse (re-scan classique) : avec le seul
+        # count_mute_e (tirage contemporain), « ivre, » perd son e
+        # (spec « ivre, » -> ivʁ ; unifier les deux casse 3 golden).
         on = cluster_words ? cluster_words.include?(w[:word]) : (dierese || count_mute_e)
+        on_pause = cluster_words ? cluster_words.include?(w[:word]) : dierese
         pronounced = mute_e_words&.include?(w[:word]) ||
                      cr_e_pronounced?(w[:word]) ||
-                     cluster_re_pronounced?(w[:word],
-                                            cluster_words ? cluster_words.include?(w[:word]) : dierese) ||
+                     cluster_re_pronounced?(w[:word], on_pause) ||
                      re_e_before_r_or_labial?(w[:word], next_word, on)
         if next_word.nil? # fin de vers : e muet non compté
           pairs.pop
@@ -1537,27 +1557,16 @@ module Scansion
       end
 
       # spans mot -> indices de syllabes (pour les outils en aval, ex.
-      # scansion/accents) : même règle de comptage que count_syllables
-      # (un glide y/ɥ suivi d'une voyelle n'est pas un noyau, sauf si la
-      # voyelle ouvre le mot suivant)
+      # scansion/accents) : même règle de noyau que count_syllables
+      # (syllable_nucleus?), donc les spans ne peuvent pas dériver du compte
+      word_starts = barriers.map { |b| b[0] }
       word_spans = []
       syl = 0
       words.each_with_index do |w, k|
         start = barriers[k][0]
         fin = k + 1 < barriers.size ? barriers[k + 1][0] : flat.size
         first = syl
-        (start...fin).each do |fk|
-          ph = flat[fk]
-          next unless ph[0].match?(PHONEME_VOYELLE)
-
-          nxt = flat[fk + 1]
-          if %w[y ɥ].include?(ph[0]) && nxt && nxt[0].match?(PHONEME_VOYELLE) &&
-             !(k + 1 < barriers.size && barriers[k + 1][0] == fk + 1)
-            next
-          end
-
-          syl += 1
-        end
+        syl += (start...fin).count { |fk| syllable_nucleus?(flat, fk, word_starts) }
         word_spans << { word: w, first: first, last: syl - 1 }
       end
       Result.new(text: line, raw: raw, phones: phones,

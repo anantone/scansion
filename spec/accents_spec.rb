@@ -29,8 +29,8 @@ RSpec.describe Scansion::Accents do
     end
 
     # « font un reflet » reste un seul groupe (verbe fini + COD), mais
-    # « peau | d'ange » se coupe (deux mots pleins)
-    it '« font un reflet sur ta peau d’ange » -> groupes 4/2/2' do
+    # « peau | d'ange » se coupe (« d' + mot » soudé coupe en contemporain)
+    it '« font un reflet sur ta peau d’ange » -> groupes 4/3/1' do
       stub_espeak('font un reflet sur ta peau d’ange' => 'fɔ̃tœ̃ʁəflɛsyʁtapodɑ̃ʒ')
       a = described_class.analyze_lines(['font un reflet sur ta peau d’ange'],
                                         mode: :contemporain).first
@@ -72,11 +72,14 @@ RSpec.describe Scansion::Accents do
       expect(a.render).to eq('də-lab-ˌsɑ̃s-də-ˈsɑ̃s')
     end
 
-    it '« d’ange » soudé ne coupe pas, même en contemporain (« peau d’ange »)' do
+    it '« d’ange » soudé coupe en contemporain, collé en classique (« peau d’ange »)' do
       stub_espeak('font un reflet sur ta peau d’ange' => 'fɔ̃tœ̃ʁəflɛsyʁtapodɑ̃ʒ')
       a = described_class.analyze_lines(['font un reflet sur ta peau d’ange'],
                                         mode: :contemporain).first
       expect(a.render).to eq('fɔ̃t-œ̃-ʁə-ˈflɛ |-syʁ-ta-ˈpo |-ˈdɑ̃ʒ')
+      a = described_class.analyze_lines(['font un reflet sur ta peau d’ange'],
+                                        mode: :classique).first
+      expect(a.render).to eq('fɔ̃t-œ̃-ʁə-ˈflɛ |-syʁ-ta-ˌpo-ˈdɑ̃ʒ')
     end
 
     it '« en » après un mot plein coupe en contemporain (« je prie | en silence »)' do
@@ -164,5 +167,116 @@ RSpec.describe Scansion::Accents, 'règles de groupement (édition manuelle)' do
     stub_espeak('Viens, lève-toi ! Flairant dans l’ombre les escrocs,' => 'vjɛ̃lɛvtwaflɛʁɑ̃dɑ̃lɔ̃bʁlezɛskʁo')
     a = described_class.analyze_line('Viens, lève-toi ! Flairant dans l’ombre les escrocs,', mode: :classique)
     expect(a.render).to eq('ˈvjɛ̃ |-lɛ-və-ˈtwa |-flɛ-ˈʁɑ̃ |-dɑ̃-ˈlɔ̃-bʁə |-le-zɛ-ˈskʁo')
+  end
+end
+
+RSpec.describe Scansion::Accents, 'affinage guidé par les lectures corrigées (golden preliminaires)' do
+  def stub_espeak(mapping)
+    allow(Scansion).to receive(:espeak) do |line|
+      mapping.fetch(line.strip) { raise KeyError, "espeak non stubbé : #{line.inspect}" }
+    end
+  end
+
+  def groupe_de(a, mot)
+    a.groups.find { |g| g.tokens.any? { |t| t.surface == mot } }
+  end
+
+  xit 'hiatus inter-mot « tu étais » -> ty-e (PROPOSITION OUVERTE, voir commentaire mark_syllables)' do
+    stub_espeak('j’ai ignoré qui tu étais' => 'ʒeinjoʁekityetɛ')
+    a = described_class.analyze_line('j’ai ignoré qui tu étais', mode: :contemporain)
+    expect(a.render).to include('ki-ty-e-ˈtɛ')
+  end
+
+  it 'locution soudée : « nulle part » dans un seul groupe' do
+    stub_espeak('beaucoup nulle part exprès' => 'bokunylpaʁɛkspʁɛ')
+    a = described_class.analyze_line('beaucoup nulle part exprès', mode: :contemporain)
+    expect(groupe_de(a, 'nulle').tokens.map(&:surface)).to include('part')
+  end
+
+  it 'locution soudée : « peu partout » dans un seul groupe' do
+    stub_espeak('un peu partout au hasard' => 'œ̃pøpaʁtuoazaʁ')
+    a = described_class.analyze_line('un peu partout au hasard', mode: :contemporain)
+    expect(groupe_de(a, 'peu').tokens.map(&:surface)).to include('partout')
+  end
+
+  it '« levé comme » : en contemporain, « comme » ouvre un groupe après un participe (« levé | comme un enfant »)' do
+    stub_espeak('lors s’est levé comme un enfant' => 'lɔʁsɛləvekɔmœ̃nɑ̃fɑ̃')
+    a = described_class.analyze_line('lors s’est levé comme un enfant', mode: :contemporain)
+    expect(groupe_de(a, 'levé').tokens.map(&:surface)).not_to include('comme')
+  end
+
+  it '« laissée | frotter » : en contemporain, un infinitif après un participe ouvre un groupe' do
+    stub_espeak('tu t’es laissée frotter, pousser, déchirer' => 'tytɛlɛsefʁɔtepusedeʃiʁe')
+    a = described_class.analyze_line('tu t’es laissée frotter, pousser, déchirer', mode: :contemporain)
+    expect(groupe_de(a, 'laissée').tokens.map(&:surface)).not_to include('frotter')
+  end
+end
+
+RSpec.describe Scansion::Accents, 'affinage guidé, round 2 (nom-de-je, ou-presque)' do
+  def stub_espeak(mapping)
+    allow(Scansion).to receive(:espeak) do |line|
+      mapping.fetch(line.strip) { raise KeyError, "espeak non stubbé : #{line.inspect}" }
+    end
+  end
+
+  def groupe_de(a, mot)
+    a.groups.find { |g| g.tokens.any? { |t| t.surface == mot } }
+  end
+
+  it '« Après tout, | l’autre langage | te ressemble » : la virgule est une frontière dure (contemporain)' do
+    stub_espeak('Après tout, l’autre langage te ressemble —' => 'apʁɛtulotʁlɑ̃gaʒtəʁəsɑ̃bl')
+    a = described_class.analyze_line('Après tout, l’autre langage te ressemble —', mode: :contemporain)
+    expect(groupe_de(a, 'l’autre').tokens.map(&:surface)).not_to include('tout')
+    # « te » (COD, après un nom) ouvre un nouveau groupe
+    expect(groupe_de(a, 'te').tokens.map(&:surface)).not_to include('langage')
+  end
+
+  it '« prend | soin | du temple » : « prend » (-d) n’est pas reconnu verbe fini, chaque mot plein ouvre un groupe' do
+    stub_espeak('(prend soin du temple en silence et emploie,' => 'pʁɑ̃swɛ̃dytɑ̃plɑ̃silɑ̃seɑ̃plwa')
+    a = described_class.analyze_line('(prend soin du temple en silence et emploie,', mode: :contemporain)
+    expect(groupe_de(a, 'prend').tokens.map(&:surface)).not_to include('soin')
+    expect(groupe_de(a, 'du').tokens.map(&:surface)).to include('temple')
+  end
+
+  it '« l’esprit | prêtre » : nom + nom en apposition se séparent (INFINITIF ne vise plus -re)' do
+    stub_espeak('l’esprit prêtre, à son meilleur lorsqu’il se tait' => 'lɛspʁipʁɛtʁasɔ̃mɛjœʁloʁskilsətɛ')
+    a = described_class.analyze_line('l’esprit prêtre, à son meilleur lorsqu’il se tait', mode: :contemporain)
+    expect(groupe_de(a, 'l’esprit').tokens.map(&:surface)).not_to include('prêtre')
+  end
+
+  it '« lorsqu’il se tait » : le réfléchi « se » reste collé au groupe précédent' do
+    stub_espeak('l’esprit prêtre, à son meilleur lorsqu’il se tait' => 'lɛspʁipʁɛtʁasɔ̃mɛjœʁloʁskilsətɛ')
+    a = described_class.analyze_line('l’esprit prêtre, à son meilleur lorsqu’il se tait', mode: :contemporain)
+    expect(groupe_de(a, 'lorsqu’il').tokens.map(&:surface)).to include('se')
+  end
+
+  it '« pas appris | l’histoire » : après ne/pas, un mot en -is est un participe (frontière avant le COD)' do
+    stub_espeak('Je n’avais pas appris l’histoire de l’art.' => 'ʒənavɛpazapʁilistwaʁdəlaʁ')
+    a = described_class.analyze_line('Je n’avais pas appris l’histoire de l’art.', mode: :contemporain)
+    expect(groupe_de(a, 'appris').tokens.map(&:surface)).not_to include('l’histoire')
+  end
+end
+
+RSpec.describe Scansion::Accents, 'régressions (revue de code)' do
+  it 'word_accents est public, comme le documente l’en-tête du module' do
+    expect(described_class).to respond_to(:word_accents)
+  end
+
+  it 'les constantes de tête de mot sont accessibles sur le module' do
+    expect(described_class::FRAGMENTS_CLITIQUES).to include('l')
+    expect('criaient').to match(described_class::TERMINAISONS_VERBE_FINI)
+  end
+
+  it 'analyze_lines ne masque plus un mode invalide' do
+    expect { described_class.analyze_lines(['un vers'], mode: :inconnu) }
+      .to raise_error(ArgumentError, /mode inconnu/)
+  end
+
+  it 'analyze_lines en :auto résout le régime une seule fois et le transmet à process_lines' do
+    line = 'la belle table ronde'
+    allow(Scansion).to receive(:espeak) { |l| l == line ? 'labɛltablʁɔ̃d' : raise(KeyError, l) }
+    expect(Scansion).to receive(:process_lines)
+      .with(anything, hash_including(mode: :classique)).and_call_original
+    described_class.analyze_lines([line] * 3)
   end
 end

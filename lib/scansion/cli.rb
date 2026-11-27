@@ -40,43 +40,24 @@ module Scansion
           options[:syllables_only] = true
         end
         opts.on('-h', '--help', 'Afficher cette aide') do
-          puts opts
-          exit
+          options[:help] = opts.to_s
         end
-      end.parse!(argv)
-
-      Encoding.default_external = Encoding::UTF_8
+      end.parse!(args = argv.dup) # argv (souvent ARGV) n'est pas modifié
+      return puts(options[:help]) if options[:help]
 
       fallbacks = 0
 
       # Accepte des chemins de fichiers ou du texte de vers en argument :
       #   scansion poeme.txt
       #   scansion "Au coin du feu, dans la langueur des rêveries!"
-      inline = []
-      ARGV.replace(argv.flat_map do |arg|
-        if arg == '-' || File.exist?(arg)
-          arg
-        else
-          inline.concat(arg.split(/[\r\n]+/))
-          nil
-        end
-      end.compact)
+      # Un argument qui n'est ni « - » ni un fichier existant est du texte.
+      # Les lignes passées en ligne viennent d'abord, puis les fichiers ;
+      # sans argument, on lit l'entrée standard.
+      files, inline = args.partition { |arg| arg == '-' || File.exist?(arg) }
+      lines = inline.flat_map { |arg| arg.split(/[\r\n]+/) }
+      files = ['-'] if files.empty? && inline.empty?
+      files.each { |f| lines.concat(cli_read_lines(f)) }
 
-      lines =
-        if inline.any? && ARGV.empty?
-          inline.each
-        elsif inline.any?
-          # mélange de texte en ligne et de chemins de fichiers : traiter
-          # d'abord les lignes passées en ligne
-          Enumerator.new do |y|
-            inline.each { |l| y << l }
-            ARGF.each_line { |l| y << l }
-          end
-        else
-          ARGF.each_line
-        end
-
-      lines = lines.to_a.map(&:chomp)
       process_lines(lines, mode: options[:mode]).each do |res|
         next if res.text.strip.empty?
 
@@ -93,6 +74,18 @@ module Scansion
       end
 
       warn "scansion : #{fallbacks} vers non alignés (sortie espeak brute)" if fallbacks.positive?
+    end
+
+    private
+
+    # Lignes d'un fichier (ou de l'entrée standard pour « - »), lues en UTF-8
+    # sans toucher à Encoding.default_external de l'hôte.
+    def cli_read_lines(path)
+      if path == '-'
+        $stdin.each_line.map { |l| l.dup.force_encoding(Encoding::UTF_8).chomp }
+      else
+        File.readlines(path, chomp: true, encoding: Encoding::UTF_8)
+      end
     end
   end
 end

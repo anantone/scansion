@@ -1109,4 +1109,22 @@ RSpec.describe Scansion do
       expect(rs.first.phones).to eq('la-bɛ-lə-ta-blə-ʁɔ̃d')
     end
   end
+
+  describe 'régressions (revue de code)' do
+    it 'scan_line respecte mute_e_words même sans cache' do
+      stub_espeak('une caresse qui produit' => 'ynkaʁɛskipʁodyi')
+      line = 'une caresse qui produit'
+      sans_cache = described_class.scan_line(line, mute_e_words: ['caresse'])
+      avec_cache = described_class.scan_line(line, mute_e_words: ['caresse'], cache: {})
+      expect(sans_cache.syllables).to eq(avec_cache.syllables)
+      expect(sans_cache.syllables).to eq(described_class.scan_line(line).syllables + 1)
+    end
+
+    it 'process_lines en :auto détecte le régime avec les rimes, comme detect_mode' do
+      stub_espeak('la belle table ronde' => 'labɛltablʁɔ̃d')
+      expect(Scansion::Classique).to receive(:detect_mode)
+        .with(anything, hash_including(:keys)).and_call_original
+      described_class.process_lines(['la belle table ronde'] * 3)
+    end
+  end
 end

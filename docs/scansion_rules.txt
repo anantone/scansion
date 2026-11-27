@@ -453,8 +453,9 @@ LIMITATION CONNUE : -u final (tu, nu, su) devant un mot à initiale
      répétées + paires adjacentes ([3,3,3,3]->6, [6,3,3]->2, [8,3]->0).
      Appliqué dans Accents.analyze_line(s) en mode contemporain ; jamais en
      mode classique. La régularité rythmique est une caractéristique du
-     vers ; l'évaluation SUBJECTIVE de ces caractéristiques (score global)
-     vit dans le gem claudel. Voir gems/claudel/docs/notes_claudel.txt.
+     vers ; la QUANTIFICATION de ces caractéristiques (modélisation via les
+     outils analytiques de scansion) vit dans le gem claudel. L'interprétation
+     de lecture (règle dure ou personnelle) reste côté scansion. Voir gems/claudel/docs/notes_claudel.txt.
 
 3.3  Règles de groupement accentuel propres au vers contemporain
      (Accents, actives seulement quand le vers est traité en mode
