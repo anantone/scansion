@@ -2,9 +2,6 @@ AllCops:
   TargetRubyVersion: 3.1
   NewCops: disable
   SuggestExtensions: false
-  Exclude:
-    - 'dev/**/*'          # outils de développement (diff de rapports, génération de golden)
-    - 'spec/golden/**/*'  # golden specs générées par dev/gen_golden.rb
 
 Style/StringLiterals:
   EnforcedStyle: single_quotes
@@ -22,22 +19,24 @@ Naming/MethodParameterName:
 Style/OptionalBooleanParameter:
   Enabled: false # API volontaire : dierese: false/true/:auto, drapeau interne big:
 
-# Le moteur de règles (syllabification.rb) est par nature long et ramifié :
-# ces plafonds documentent l'état actuel et servent de fil d'alarme.
+# Le moteur de règles est découpé en une méthode par règle (Aligner#vowel_*,
+# #consonant_*, Accents.frontiere_*) : les plafonds par méthode sont serrés
+# et servent de fil d'alarme ; les plafonds de module/classe reflètent le
+# nombre de règles (une règle = une méthode commentée).
 Metrics/BlockLength:
   Exclude: ['spec/**/*']
-  Max: 200
+  Max: 30
 Metrics/MethodLength:
-  Max: 260
+  Max: 45
 Metrics/AbcSize:
-  Max: 700
+  Max: 95
 Metrics/CyclomaticComplexity:
-  Max: 175
+  Max: 25
 Metrics/PerceivedComplexity:
-  Max: 185
+  Max: 25
 Metrics/ParameterLists:
   Max: 12
 Metrics/ClassLength:
-  Max: 485
+  Max: 575
 Metrics/ModuleLength:
-  Max: 950
+  Max: 1020

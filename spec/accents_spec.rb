@@ -170,7 +170,7 @@ RSpec.describe Scansion::Accents, 'règles de groupement (édition manuelle)' do
   end
 end
 
-RSpec.describe Scansion::Accents, 'affinage guidé par les lectures corrigées (golden preliminaires)' do
+RSpec.describe Scansion::Accents, 'affinage contemporain (locutions, frontières)' do
   def stub_espeak(mapping)
     allow(Scansion).to receive(:espeak) do |line|
       mapping.fetch(line.strip) { raise KeyError, "espeak non stubbé : #{line.inspect}" }
@@ -179,12 +179,6 @@ RSpec.describe Scansion::Accents, 'affinage guidé par les lectures corrigées (
 
   def groupe_de(a, mot)
     a.groups.find { |g| g.tokens.any? { |t| t.surface == mot } }
-  end
-
-  xit 'hiatus inter-mot « tu étais » -> ty-e (PROPOSITION OUVERTE, voir commentaire mark_syllables)' do
-    stub_espeak('j’ai ignoré qui tu étais' => 'ʒeinjoʁekityetɛ')
-    a = described_class.analyze_line('j’ai ignoré qui tu étais', mode: :contemporain)
-    expect(a.render).to include('ki-ty-e-ˈtɛ')
   end
 
   it 'locution soudée : « nulle part » dans un seul groupe' do

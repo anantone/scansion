@@ -596,7 +596,18 @@ RSpec.describe Scansion do
       stub_espeak("Et l'étendue où l'esprit passe ?" => 'eletɑ̃dyulɛspʁipas')
       r = process("Et l'étendue où l'esprit passe ?")
       expect(r).to have_attributes(aligned: true, syllables: 8)
-      expect(r.phones).to eq('e-le-tɑ̃dy-u-lɛ-spʁi-pas')
+      expect(r.phones).to eq('e-le-tɑ̃-dy-u-lɛ-spʁi-pas')
+    end
+    it 'hiatus inter-mot : « tu es » -> ty-ɛ, pas de synérèse entre deux mots (on écrirait « t’es »)' do
+      stub_espeak('tu es là' => 'tyɛla')
+      r = process('tu es là', mode: :contemporain)
+      expect(r).to have_attributes(aligned: true, syllables: 3)
+      expect(r.phones).to eq('ty-ɛ-la')
+    end
+    it 'hiatus inter-mot : « nu et » -> ny-e, mais le glide reste à l’intérieur du mot (fuyait, nuit)' do
+      stub_espeak('nu et seul' => 'nyesœl', 'la nuit fuyait' => 'lanyifyijɛ')
+      expect(process('nu et seul', mode: :contemporain).phones).to eq('ny-e-sœl')
+      expect(process('la nuit fuyait', mode: :contemporain).phones).to eq('la-nyi-fyi-jɛ')
     end
     it 'le « j » de appuyer (a-p-yi-j-e) est consommé et « ombre » garde son e : 8 syllabes' do
       stub_espeak("Appuyer dans l'ombre du vide" => 'apyijedɑ̃lɔ̃bʁdyvid')
@@ -708,6 +719,44 @@ RSpec.describe Scansion do
       r = described_class.process_line('Pauvres petits oiseaux !', mode: :classique)
       expect(r).to have_attributes(aligned: true, syllables: 6)
       expect(r.phones).to eq('po-vʁə-pə-tiz-wa-zo')
+    end
+  end
+
+  describe 'ciblage mot à mot indépendant (e_words, dierese_words)' do
+    let(:vers) { 'les alouettes lestes qui mélangent' }
+
+    before { stub_espeak(vers => 'lezalwɛtlɛstkimelɑ̃ʒ') }
+
+    it 'e_words : e final compté sur ces seuls mots, -es pluriel compris' do
+      expect(described_class.scan_line(vers, e_words: ['lestes']).phones).to eq('le-za-lwɛt-lɛs-tə-ki-me-lɑ̃ʒ')
+      expect(described_class.scan_line(vers, e_words: ['alouettes']).phones).to eq('le-za-lwɛ-tə-lɛst-ki-me-lɑ̃ʒ')
+    end
+    it 'dierese_words sans dierese: true : diérèse seule, aucun e compté' do
+      expect(described_class.scan_line(vers, dierese_words: ['alouettes']).phones).to eq('le-za-lu-ɛt-lɛst-ki-me-lɑ̃ʒ')
+    end
+    it 'les deux se combinent (lecture à 10 syllabes)' do
+      r = described_class.scan_line(vers, e_words: %w[alouettes lestes], dierese_words: ['alouettes'])
+      expect(r).to have_attributes(phones: 'le-za-lu-ɛ-tə-lɛs-tə-ki-me-lɑ̃ʒ', syllables: 10)
+    end
+  end
+
+  describe '« ou » + e (mouette, alouettes, jouer, fouet)' do
+    it 'contemporain : le glide w garde la voyelle du e, pas de schwa fantôme' do
+      stub_espeak('la mouette' => 'lamwɛt', 'les alouettes lestes qui mélangent' => 'lezalwɛtlɛstkimelɑ̃ʒ')
+      expect(process('la mouette', mode: :contemporain).phones).to eq('la-mwɛt')
+      expect(process('les alouettes lestes qui mélangent', mode: :contemporain).phones)
+        .to eq('le-za-lwɛt-lɛst-ki-me-lɑ̃ʒ')
+    end
+    it 'classique : diérèse ou+e (« les alouettes lestes qui mélangent » -> 10)' do
+      stub_espeak('les alouettes lestes qui mélangent' => 'lezalwɛtlɛstkimelɑ̃ʒ')
+      r = described_class.scan_line('les alouettes lestes qui mélangent', dierese: true, count_mute_e: true)
+      expect(r).to have_attributes(phones: 'le-za-lu-ɛ-tə-lɛs-tə-ki-me-lɑ̃ʒ', syllables: 10)
+    end
+    it 'classique : « fouet » reste monosyllabe, « ouest » aussi' do
+      stub_espeak('le fouet' => 'ləfwɛ', 'ouest' => 'wɛst', 'jouer' => 'ʒwe')
+      expect(described_class.scan_line('le fouet', dierese: true).phones).to eq('lə-fwɛ')
+      expect(described_class.scan_line('ouest', dierese: true).phones).to eq('wɛst')
+      expect(described_class.scan_line('jouer', dierese: true).phones).to eq('ʒu-e')
     end
   end
 

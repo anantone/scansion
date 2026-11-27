@@ -122,6 +122,18 @@ module Scansion
     # 6//6 pour l'alexandrin, 4//4 pour l'octosyllabe.
     CESURES = { 12 => 5, 8 => 3 }.freeze
 
+    # Contexte d'une décision de frontière (voir Accents.boundary_before?) :
+    # le mot courant, ses pièces, sa tête, et les têtes des voisins.
+    ContexteFrontiere = Struct.new(:tok, :pcs, :head, :last, :nxt_head, :prev, :prev_head,
+                                   :prev2_head, :contemporain, keyword_init: true)
+
+    # Règles de frontière de groupe, dans l'ordre où elles sont essayées.
+    REGLES_FRONTIERE = %i[
+      frontiere_indefini frontiere_conjonction_auxiliaire frontiere_en
+      frontiere_preposition frontiere_de_soude frontiere_determinant
+      frontiere_participe frontiere_mots_pleins
+    ].freeze
+
     # Word token: Unicode word chars plus apostrophes (elisions: l'amour) and
     # internal hyphens (porte-parapluie).
     REGEXP_MOTS = /[\p{Word}'’-]+|[,;:.!?…—–«»"]/
@@ -238,141 +250,169 @@ module Scansion
         !head.nil? && head.match?(TERMINAISONS_VERBE_FINI)
       end
 
+      # Une frontière de groupe AVANT tokens[i] (mot) ? Les règles
+      # REGLES_FRONTIERE sont essayées dans l'ordre : chacune renvoie true
+      # (frontière), false (pas de frontière, décision finale) ou nil (ne
+      # s'applique pas). Aucune ne s'applique : pas de frontière.
       def boundary_before?(tokens, i, contemporain: false)
         tok = tokens[i]
         return false unless tok.kind == :word
         return false if i.zero?
 
-        pcs = pieces(tok)
-        head = head_of(tok).to_s # saute les fragments clitiques (c'est -> est)
-        last = pcs.last.to_s.downcase
-        nxt = tokens[i + 1]
-        nxt_head = nxt ? head_of(nxt) : nil
-        prev = tokens[i - 1]
-        prev_head = prev ? head_of(prev) : nil
-        prev2 = i >= 2 ? tokens[i - 2] : nil # pas d'index négatif !
-        prev2_head = prev2 ? head_of(prev2) : nil
-
-        # aucun, tout, autre… seuls ouvrent un groupe — sauf locution soudée
-        # (« donc en tout » ne coupe pas avant « tout »)
-        return true if pcs.size == 1 && INDEFINIS.key?(head) &&
-                       !LOCUTIONS_SANS_FRONTIERE.include?([prev_head.to_s, head])
-        return true if CONJONCTIONS.key?(head) || CONJONCTIONS.key?(last)
-        return true if contemporain && CONTEMP_CONJONCTIONS.key?(head) # « alors »
-        return true if AUXILIAIRES.key?(last) # n'est, est, a…
-
-        # « en » : pronom devant un verbe à l'infinitif ou un nom (« en finir »
-        # ne coupe pas), préposition devant un déterminant (« en ta toison »
-        # coupe)
-        if head == 'en'
-          # mode contemporain : mot plein suivi de « en » -> frontière
-          # (« je prie | en silence »)
-          if contemporain && prev.kind == :word && prev_head &&
-             (!MOTS_FONCTIONNELS.key?(prev_head) || CONTEMP_PRONOMS_PLEINS.include?(prev_head))
-            return true
-          end
-
-          return nxt_head && DETERMINANTS.key?(nxt_head) ? true : false
+        ctx = boundary_context(tokens, i, contemporain)
+        REGLES_FRONTIERE.each do |regle|
+          decision = send(regle, ctx)
+          return decision unless decision.nil?
         end
-
-        if PREPOSITIONS.key?(head)
-          # « d'ange » (de + nom nu soudé) : pas de frontière — mais « d'honorer »
-          # (de + infinitif soudé) coupe en contemporain (« convenu | d'honorer »)
-          return false if %w[de d].include?(head) && pcs.size > 1 &&
-                          !(contemporain && pcs.last.to_s.downcase.match?(INFINITIF))
-
-          # « de + nom nu » complément ne coupe pas, même en contemporain :
-          # « l'absence de sens », « nue de chair », « peur de mourir »
-          return false if %w[de d].include?(head) && nxt_head && !DETERMINANTS.key?(nxt_head)
-
-          # mode contemporain : mot plein suivi d'une préposition (autre que
-          # de) -> frontière (« d'or | en ta chair ») — sauf si le mot plein est
-          # lui-même précédé d'une préposition (« tout de même, par honnêteté »
-          # ne coupe pas avant « par »)
-          if contemporain && prev.kind == :word && prev_head &&
-             (!MOTS_FONCTIONNELS.key?(prev_head) || CONTEMP_PRONOMS_PLEINS.include?(prev_head)) &&
-             !(prev2_head && PREPOSITIONS.key?(prev2_head.to_s))
-            return true
-          end
-
-          return true
-        end
-        # « d' + mot » soudé (pièces > 1 commençant par de/d) : coupe en
-        # contemporain (« peau | d'ange », « enrubannés | d'espoir »,
-        # « convenu | d'honorer ») ; collé en classique
-        if pcs.size > 1 && %w[de d].include?(pcs.first.to_s.downcase)
-          return contemporain ? true : false
-        end
-
-        if DETERMINANTS.key?(head)
-          # le déterminant appartient au syntagme précédent (« que le fond »,
-          # « sans l'accuser ») si le mot d'avant est fonctionnel — SAUF après
-          # « tout » pronominal (« Après tout, | l'autre langage » : tout après
-          # une préposition est un pronom, pas un déterminant)
-          if prev_head && MOTS_FONCTIONNELS.key?(prev_head) &&
-             !(prev_head == 'tout' && prev2_head && PREPOSITIONS.key?(prev2_head.to_s))
-            return false
-          end
-          # après un verbe fini, le COD reste dans le groupe verbal
-          # (« font un reflet », « fondra la mer », « ne naît la nuit »)
-          # — sauf après « pas » : « pas appris | l'histoire » (participe)
-          if prev.kind == :word && finite_verb_head?(prev_head) &&
-             prev2_head.to_s != 'pas'
-            return false
-          end
-          # « du/des » (génitif) collé à une PP (« à partir du col ») : pas de
-          # frontière ; un article plein (« les escrocs » après « l’ombre ») ouvre
-          # bien un nouveau syntagme
-          return false if %w[du des].include?(head) && prev2_head && PREPOSITIONS.key?(prev2_head.to_s)
-
-          return true
-        end
-        # participe passé / adjectif verbal en -é/-i/-u après un mot PLEIN :
-        # il ouvre un nouveau groupe (« la date | choisie »), sauf nom propre
-        # capitalisé (« le dogue Liberté »). Les verbes finis restent avec leur
-        # sujet (« mes pères criaient » -> un seul groupe).
-        if prev_head && prev.kind == :word && !MOTS_FONCTIONNELS.key?(prev_head) &&
-           !finite_verb_head?(prev_head) &&
-           tok.surface[0] == tok.surface[0].downcase &&
-           head.match?(PARTICIPES)
-          return true
-        end
-
-        # Mode contemporain : frontière entre deux mots PLEINS (« bile | noire »,
-        # « reflets | dérisoires », « reins | l'épaule », « pères | criaient »).
-        # Les déterminants après un verbe fini restent dans le groupe verbal
-        # (règle ci-dessus : « font un reflet »).
-        if contemporain && prev.kind == :word && prev_head
-          prev_plein = !MOTS_FONCTIONNELS.key?(prev_head) ||
-                       CONTEMP_PRONOMS_PLEINS.include?(prev_head)
-          plein = !MOTS_FONCTIONNELS.key?(head) || head == 'qui' || PRONOMS.key?(head)
-          # la négation « pas » reste dans le groupe verbal (« ne meurt | pas »
-          # -> en fait « ne meurt pas » ne coupe pas)
-          plein &&= head != 'pas'
-          # locutions soudées : « nulle part », « peu partout » -> un seul groupe
-          return false if LOCUTIONS_SANS_FRONTIERE.include?([prev_head.to_s, head])
-
-          # pronom réfléchi (se/me/te) collé à un pronom sujet (« lorsqu'il se
-          # tait » : dernière partie de « lorsqu'il » = il) ; après un nom, il
-          # ouvre un groupe (« l'autre langage | te ressemble »)
-          prev_pronom = prev_head && (PRONOMS.key?(prev_head) ||
-                                      CONTEMP_PRONOMS_PLEINS.include?(prev_head.to_s) ||
-                                      (pieces(prev).size > 1 && PRONOMS.key?(pieces(prev).last.to_s.downcase)))
-          return false if %w[se me te].include?(head) && prev.kind == :word && prev_pronom
-          # verbe fini après un pronom sujet ou une conjonction : « je | vais »,
-          # « et | croit » (mais « nous | battre » : infinitif ; « se | tait » :
-          # réfléchi ; « ne | naît », « s'en | va » : négation/pronom collés)
-          if finite_verb_head?(head) && prev_pronom && !%w[se me te ne en y].include?(prev_head.to_s) ||
-             finite_verb_head?(head) && CONJONCTIONS.key?(prev_head.to_s)
-            return true
-          end
-          # deux mots pleins se séparent (« livre | comme », « lois | anciennes »,
-          # « fais | tourner », « lait | clair »)
-          return true if prev_plein && plein
-        end
-
         false
       end
+
+      def boundary_context(tokens, i, contemporain)
+        tok = tokens[i]
+        pcs = pieces(tok)
+        nxt = tokens[i + 1]
+        prev = tokens[i - 1]
+        prev2 = i >= 2 ? tokens[i - 2] : nil # pas d'index négatif !
+        ContexteFrontiere.new(
+          tok: tok, pcs: pcs,
+          head: head_of(tok).to_s, # saute les fragments clitiques (c'est -> est)
+          last: pcs.last.to_s.downcase,
+          nxt_head: nxt ? head_of(nxt) : nil,
+          prev: prev, prev_head: prev ? head_of(prev) : nil,
+          prev2_head: prev2 ? head_of(prev2) : nil,
+          contemporain: contemporain
+        )
+      end
+
+      # le mot précédent est PLEIN (mode contemporain : qui/jamais/rien/leur(s)
+      # comptent comme pleins côté précédent)
+      def prev_plein?(ctx)
+        ctx.prev.kind == :word && ctx.prev_head &&
+          (!MOTS_FONCTIONNELS.key?(ctx.prev_head) || CONTEMP_PRONOMS_PLEINS.include?(ctx.prev_head))
+      end
+
+      # aucun, tout, autre… seuls ouvrent un groupe — sauf locution soudée
+      # (« donc en tout » ne coupe pas avant « tout »)
+      def frontiere_indefini(ctx)
+        true if ctx.pcs.size == 1 && INDEFINIS.key?(ctx.head) &&
+                !LOCUTIONS_SANS_FRONTIERE.include?([ctx.prev_head.to_s, ctx.head])
+      end
+
+      # conjonction (que, et…), « alors » en contemporain, auxiliaire (n'est, est, a…)
+      def frontiere_conjonction_auxiliaire(ctx)
+        true if CONJONCTIONS.key?(ctx.head) || CONJONCTIONS.key?(ctx.last) ||
+                (ctx.contemporain && CONTEMP_CONJONCTIONS.key?(ctx.head)) ||
+                AUXILIAIRES.key?(ctx.last)
+      end
+
+      # « en » : pronom devant un verbe à l'infinitif ou un nom (« en finir »
+      # ne coupe pas), préposition devant un déterminant (« en ta toison »
+      # coupe) ; en contemporain, un mot plein suivi de « en » coupe
+      # (« je prie | en silence »)
+      def frontiere_en(ctx)
+        return unless ctx.head == 'en'
+        return true if ctx.contemporain && prev_plein?(ctx)
+
+        ctx.nxt_head && DETERMINANTS.key?(ctx.nxt_head) ? true : false
+      end
+
+      # préposition en tête de mot : coupe, sauf « de/d' » devant un nom nu
+      # (« l'absence de sens ») ou soudé à un nom (« d'ange »)
+      def frontiere_preposition(ctx)
+        return unless PREPOSITIONS.key?(ctx.head)
+
+        if %w[de d].include?(ctx.head)
+          # « d'ange » (de + nom nu soudé) : pas de frontière — mais « d'honorer »
+          # (de + infinitif soudé) coupe en contemporain (« convenu | d'honorer »)
+          return false if ctx.pcs.size > 1 && !(ctx.contemporain && ctx.pcs.last.to_s.downcase.match?(INFINITIF))
+          # « de + nom nu » complément ne coupe pas, même en contemporain :
+          # « l'absence de sens », « nue de chair », « peur de mourir »
+          return false if ctx.nxt_head && !DETERMINANTS.key?(ctx.nxt_head)
+        end
+        # toute autre préposition coupe (en contemporain notamment après un
+        # mot plein : « d'or | en ta chair »)
+        true
+      end
+
+      # « d' + mot » soudé (pièces > 1 commençant par de/d) : coupe en
+      # contemporain (« peau | d'ange », « enrubannés | d'espoir »,
+      # « convenu | d'honorer ») ; collé en classique
+      def frontiere_de_soude(ctx)
+        return unless ctx.pcs.size > 1 && %w[de d].include?(ctx.pcs.first.to_s.downcase)
+
+        ctx.contemporain ? true : false
+      end
+
+      def frontiere_determinant(ctx)
+        return unless DETERMINANTS.key?(ctx.head)
+
+        # le déterminant appartient au syntagme précédent (« que le fond »,
+        # « sans l'accuser ») si le mot d'avant est fonctionnel — SAUF après
+        # « tout » pronominal (« Après tout, | l'autre langage » : tout après
+        # une préposition est un pronom, pas un déterminant)
+        if ctx.prev_head && MOTS_FONCTIONNELS.key?(ctx.prev_head) &&
+           !(ctx.prev_head == 'tout' && ctx.prev2_head && PREPOSITIONS.key?(ctx.prev2_head.to_s))
+          return false
+        end
+        # après un verbe fini, le COD reste dans le groupe verbal
+        # (« font un reflet », « fondra la mer », « ne naît la nuit »)
+        # — sauf après « pas » : « pas appris | l'histoire » (participe)
+        return false if ctx.prev.kind == :word && finite_verb_head?(ctx.prev_head) && ctx.prev2_head.to_s != 'pas'
+        # « du/des » (génitif) collé à une PP (« à partir du col ») : pas de
+        # frontière ; un article plein (« les escrocs » après « l’ombre ») ouvre
+        # bien un nouveau syntagme
+        return false if %w[du des].include?(ctx.head) && ctx.prev2_head && PREPOSITIONS.key?(ctx.prev2_head.to_s)
+
+        true
+      end
+
+      # participe passé / adjectif verbal en -é/-i/-u après un mot PLEIN :
+      # il ouvre un nouveau groupe (« la date | choisie »), sauf nom propre
+      # capitalisé (« le dogue Liberté »). Les verbes finis restent avec leur
+      # sujet (« mes pères criaient » -> un seul groupe).
+      def frontiere_participe(ctx)
+        true if ctx.prev_head && ctx.prev.kind == :word && !MOTS_FONCTIONNELS.key?(ctx.prev_head) &&
+                !finite_verb_head?(ctx.prev_head) &&
+                ctx.tok.surface[0] == ctx.tok.surface[0].downcase &&
+                ctx.head.match?(PARTICIPES)
+      end
+
+      # Mode contemporain : frontière entre deux mots PLEINS (« bile | noire »,
+      # « reflets | dérisoires », « reins | l'épaule », « pères | criaient »).
+      # Les déterminants après un verbe fini restent dans le groupe verbal
+      # (frontiere_determinant : « font un reflet »).
+      def frontiere_mots_pleins(ctx)
+        return unless ctx.contemporain && ctx.prev.kind == :word && ctx.prev_head
+
+        head = ctx.head
+        prev_head = ctx.prev_head
+        # la négation « pas » reste dans le groupe verbal (« ne meurt pas »
+        # ne coupe pas)
+        plein = (!MOTS_FONCTIONNELS.key?(head) || head == 'qui' || PRONOMS.key?(head)) && head != 'pas'
+        # locutions soudées : « nulle part », « peu partout » -> un seul groupe
+        return false if LOCUTIONS_SANS_FRONTIERE.include?([prev_head.to_s, head])
+
+        # pronom réfléchi (se/me/te) collé à un pronom sujet (« lorsqu'il se
+        # tait » : dernière partie de « lorsqu'il » = il) ; après un nom, il
+        # ouvre un groupe (« l'autre langage | te ressemble »)
+        prev_pcs = pieces(ctx.prev)
+        prev_pronom = PRONOMS.key?(prev_head) || CONTEMP_PRONOMS_PLEINS.include?(prev_head.to_s) ||
+                      (prev_pcs.size > 1 && PRONOMS.key?(prev_pcs.last.to_s.downcase))
+        return false if %w[se me te].include?(head) && prev_pronom
+        # verbe fini après un pronom sujet ou une conjonction : « je | vais »,
+        # « et | croit » (mais « nous | battre » : infinitif ; « se | tait » :
+        # réfléchi ; « ne | naît », « s'en | va » : négation/pronom collés)
+        if finite_verb_head?(head) &&
+           ((prev_pronom && !%w[se me te ne en y].include?(prev_head.to_s)) ||
+            CONJONCTIONS.key?(prev_head.to_s))
+          return true
+        end
+
+        # deux mots pleins se séparent (« livre | comme », « lois | anciennes »,
+        # « fais | tourner », « lait | clair »)
+        true if prev_plein?(ctx) && plein
+      end
+      private(*REGLES_FRONTIERE, :boundary_context, :prev_plein?)
 
       # Analyse accentuelle d'un Result DÉJÀ calculé (ex. par process_line) :
       # utile aux outils en aval (gem claudel) qui réutilisent une scansion

@@ -1,6 +1,6 @@
-RÈGLES APPLIQUÉES DANS scansion.rb
-=========================================
-(état courant du script — chaque règle est illustrée par un exemple
+RÈGLES DE SCANSION DU GEM scansion
+==================================
+(état courant du gem — chaque règle est illustrée par un exemple
 concret tiré des tests ou des échantillons samples/)
 
 Le script phonétise chaque vers avec espeak-ng (API --ipa), puis aligne
@@ -109,7 +109,10 @@ CLI) prennent `mode: :auto | :classique | :contemporain` :
      ruas -> ru-as ; 2 syllabes), un « i » suivi d’un « u » (médium ->
      mé-di-um), et pour un « ou »
      suivi d’un « a »/« é »/« è » (couardise -> cou-ar-dise, joua -> jou-a,
-     dénoué -> dé-nu-é) — mais PAS
+     dénoué -> dé-nu-é) ou d’un « e » (alouettes -> a-lou-e-ttes, rouet ->
+     rou-et, jouer -> jou-er ; « les alouettes lestes qui mélangent » ->
+     le-za-lu-ɛ-tə-lɛs-tə-ki-me-lɑ̃ʒ, 10) — sauf en tête de mot (ouest, 1)
+     et dans la famille de « fouet » (fouet, fouetté -> fwɛ-te) — mais PAS
      pour un « ue »/« ua » interne (ruelle -> ʁɥɛl, nuage -> nyaʒ,
      1 syllabe). En re-scan CIBLÉ (dierese_words, voir ci-dessous), deux
      extensions : « u+a » interne (suaves -> su-a-ves, muaient -> mu-a-ient,
@@ -275,11 +278,15 @@ CLI) prennent `mode: :auto | :classique | :contemporain` :
      Un glide suivi d’une voyelle en milieu de mot avale la voyelle
      (a -> j+a : effroyable -> efʁwa-jabl, voyage -> vwa-jaʒ).
 
-2.1h Comptage des syllabes : un « y »/ɥ (glide) directement suivi d’une
-     voyelle ne compte pas comme syllabe (fuyait -> f-yi-jɛ = 2, pas 3) —
-     SAUF si la voyelle suivante appartient au MOT SUIVANT (barrière de
-     mot passée à count_syllables) : c’est alors un hiatus et le y est le
-     noyau /y/, compté (étendue où -> …-dy-u = 2 syllabes pour « due où »).
+2.1h Pas de synérèse entre deux mots. Un « y »/ɥ directement suivi d’une
+     voyelle du MÊME mot est un glide, sans syllabe propre (fuyait ->
+     fyi-jɛ = 2, nuit -> nyi). Si la voyelle suivante appartient au MOT
+     SUIVANT, c’est un hiatus : le y est le noyau /y/, compté ET coupé
+     (tu es -> ty-ɛ, nu et -> ny-e, tu y vas -> ty-i-va, étendue où ->
+     tɑ̃-dy-u). Critère : si la voyelle s’effaçait à la lecture, la
+     graphie l’élide (« t’es ») ; un -u final écrit est donc prononcé.
+     Une seule règle (syllable_nucleus?) sert au compte, à la coupure
+     syllabique (mark_syllables) et aux word_spans.
      Un e final-ish dont le mot a déjà sa voyelle ne consomme jamais un
      segment voyelle suivant (sinon il vole la voyelle du mot suivant).
 
@@ -325,6 +332,9 @@ CLI) prennent `mode: :auto | :classique | :contemporain` :
      -il/-ill après le glide absorbé (« œil », « soleil », « jaillisse ») ;
      -ll- après voyelle rendu par j (« aiguille » -> ɛɡij) ;
      voyelle avalée après glide si aucune voyelle ne suit (« feuilles »).
+     « ou » rendu w devant un e non final (mouette -> m-w-ɛ-t) : le u fait
+     partie du glide, la voyelle qui suit est celle du e — aucun schwa
+     n’est restauré (mouette -> mwɛt, 1 ; alouette -> a-lwɛt, 2).
 
 2.7  E muet restauré quand aucune voyelle phonétique ne correspond
      (c'est le cœur du script) ; le pruning de scansion (règles 1.2-1.6)
@@ -429,11 +439,6 @@ CLI) prennent `mode: :auto | :classique | :contemporain` :
 
 2.27 S initial devant une consonne voiced prononcée z par espeak-ng :
      s -> z (sveltesse -> zvɛltɛs).
-
-LIMITATION CONNUE : -u final (tu, nu, su) devant un mot à initiale
-     voyelle — le glide y n’est pas compté comme noyau (tu es -> compté
-     1 syll. au lieu de 2), car on ne peut pas distinguer /y/ noyau de
-     /j/ glide dans la chaîne de phones seule.
 
 
 3. RÈGLES DE TIRAGE (mètre et rythme)
