@@ -138,8 +138,18 @@ module Scansion
     # internal hyphens (porte-parapluie).
     REGEXP_MOTS = /[\p{Word}'’-]+|[,;:.!?…—–«»"]/
 
+    # Ce que Scansion.normalize_input remplace par une espace (entités HTML,
+    # chiffres) : tokenize le masque par AUTANT d'espaces, ce qui donne les
+    # mêmes tokens tout en gardant les positions du texte d'origine.
+    MASQUE_NORMALISATION = /&[a-zA-Z#0-9]+;|\d+/
+
     # keyword_init structs take keyword arguments only.
-    Token = Struct.new(:surface, :kind, :debut, :fin, keyword_init: true) # kind: :word | :punct
+    # - +debut+, +fin+ : indices de la première/dernière syllabe du mot
+    #   (nil pour la ponctuation ou un mot non aligné) ;
+    # - +char_debut+, +char_fin+ : indices du premier/dernier caractère du
+    #   token dans Analysis#text (bornes incluses, comme debut/fin) :
+    #   text[t.char_debut..t.char_fin] == t.surface.
+    Token = Struct.new(:surface, :kind, :debut, :fin, :char_debut, :char_fin, keyword_init: true) # kind: :word | :punct
     # hard = true : la frontière après ce groupe vient d'une ponctuation
     # (mode contemporain : la ponctuation est une frontière dure, on ne
     # recolle pas un groupe fonctionnel au suivant — « Après tout, | l'autre »)
@@ -435,9 +445,10 @@ module Scansion
           warns << "syllable count (#{res.syllables}) != phone segments (#{syls.size}); alignment may drift"
         end
 
-        # tokenize the NORMALIZED text: its word pieces then line up 1:1 with
-        # Scansion.words_of / Result#word_spans
-        tokens = tokenize(Scansion.normalize_input(text))
+        # tokenize the text as normalized by Scansion.normalize_input (masked
+        # with same-length blanks, see tokenize): its word pieces then line up
+        # 1:1 with Scansion.words_of / Result#word_spans
+        tokens = tokenize(text)
         align_words(res, tokens, syls, warns)
         groups = merge_function_groups(split_caesura(build_groups(tokens, contemporain: contemporain), syls))
         groups.each { |g| g.accent = place_accent(g, syls) }
@@ -453,11 +464,19 @@ module Scansion
 
       # ---- tokenization -------------------------------------------------------
 
+      # Tokens de +text+ avec leurs positions en caractères dans +text+. Ce
+      # que normalize_input remplace par une espace est masqué par autant
+      # d'espaces : mêmes tokens que tokenize(normalize_input(text)), mais
+      # les positions restent celles du texte d'origine.
       def tokenize(text)
-        text.scan(REGEXP_MOTS).map do |m|
+        masque = text.gsub(MASQUE_NORMALISATION) { |m| ' ' * m.length }
+        tokens = []
+        masque.scan(REGEXP_MOTS) do |m|
+          md = Regexp.last_match
           kind = m.match?(REGEXP_PONCTUATION) ? :punct : :word
-          Token.new(surface: m, kind: kind)
+          tokens << Token.new(surface: m, kind: kind, char_debut: md.begin(0), char_fin: md.end(0) - 1)
         end
+        tokens
       end
 
       # pieces of a word token, split exactly like Scansion.words_of

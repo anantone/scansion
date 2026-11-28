@@ -107,6 +107,8 @@ a = Scansion::Accents.analyze_line("mes pères criaient dessous mes pieds", mode
 a.render        # => "me-ˈpɛʁ |-kʁi-ˈɛ |-də-su-me-ˈpje   (8 syll.)"
 a.accents       # => [1, 3, 7]  (accents de phrase : pères | criaient | pieds)
 a.word_accents  # => [1, 7]     (accents secondaires des mots pères, pieds)
+t = a.tokens[1] # => surface "pères", debut 1, fin 1 (syllabes), char_debut 4, char_fin 8
+a.text[t.char_debut..t.char_fin] # => "pères"  (position du mot dans le vers d'origine)
 
 Scansion::Accents.analyze_lines(File.readlines("corpus.txt", chomp: true)) # :auto ; mode: :contemporain force le tirage 2.6
 ```

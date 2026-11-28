@@ -1,6 +1,10 @@
 # Journal des modifications
 
-## 3.0.0 (non publié)
+## 3.1.0
+
+- `Accents::Token` porte la position de chaque token dans le vers : `char_debut` et `char_fin`, indices du premier/dernier caractère dans `Analysis#text` (bornes incluses, comme `debut`/`fin` pour les syllabes) — `text[t.char_debut..t.char_fin] == t.surface`. Les positions sont celles du texte d'origine : `tokenize` masque ce que `normalize_input` remplace (entités HTML, chiffres) par autant d'espaces (`MASQUE_NORMALISATION`), ce qui donne les mêmes tokens. Permet aux outils en aval (éditeur, surlignage) de replacer les mots, syllabes et accents dans le texte. Ajout rétrocompatible (Struct `keyword_init`) ; analyses inchangées (rendu et tokens identiques sur les 105 samples). Specs : 206 exemples, 0 échec
+
+## 3.0.0 
 
 - corrections (revue de code) :
   - `scan_line` sans cache ignorait `mute_e_words:` (les variantes « +e » mot à mot de `Rythme.accent_pull` appelé sans cache étaient inopérantes)

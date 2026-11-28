@@ -274,3 +274,32 @@ RSpec.describe Scansion::Accents, 'régressions (revue de code)' do
     described_class.analyze_lines([line] * 3)
   end
 end
+
+RSpec.describe Scansion::Accents, 'positions des tokens dans le texte (char_debut / char_fin)' do
+  def stub_espeak(mapping)
+    allow(Scansion).to receive(:espeak) do |line|
+      mapping.fetch(line) { raise KeyError, "espeak non stubbé : #{line.inspect}" }
+    end
+  end
+
+  def positions(analysis)
+    analysis.tokens.map { |t| [t.surface, t.char_debut, t.char_fin] }
+  end
+
+  it 'repère mots et ponctuation dans le texte d’origine, espaces de tête comprises' do
+    texte = '  l’ombre, et le soleil !'
+    stub_espeak(texte => 'lɔ̃bʁeləsolɛj')
+    a = described_class.analyze_line(texte, mode: :contemporain)
+    expect(positions(a)).to eq([['l’ombre', 2, 8], [',', 9, 9], ['et', 11, 12], ['le', 14, 15],
+                                ['soleil', 17, 22], ['!', 24, 24]])
+    a.tokens.each { |t| expect(a.text[t.char_debut..t.char_fin]).to eq(t.surface) }
+  end
+
+  it 'garde les positions d’origine malgré la normalisation (chiffres, entités HTML)' do
+    texte = 'le 13 mai &amp; les nœuds-coulants'
+    stub_espeak('le   mai   les nœuds-coulants' => 'ləmɛlenøkulɑ̃')
+    a = described_class.analyze_line(texte, mode: :contemporain)
+    expect(positions(a)).to eq([['le', 0, 1], ['mai', 6, 8], ['les', 16, 18], ['nœuds-coulants', 20, 33]])
+    expect(a.tokens.map(&:surface)).to eq(Scansion.normalize_input(texte).scan(described_class::REGEXP_MOTS))
+  end
+end
